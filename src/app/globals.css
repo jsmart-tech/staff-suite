@@ -1,0 +1,442 @@
+@import "tailwindcss";
+
+/* =====================================================
+   STAFFSUITE DESIGN TOKENS
+   ===================================================== */
+:root {
+  --bg-primary:    #0a0b0f;
+  --bg-secondary:  #111218;
+  --bg-card:       #16181f;
+  --bg-hover:      #1e2028;
+  --border:        #2a2d3a;
+  --border-bright: #3a3d4a;
+  --text-primary:  #f0f2f8;
+  --text-secondary:#8b90a8;
+  --text-muted:    #555870;
+
+  --accent-violet:     #7c5bf6;
+  --accent-emerald:    #10d98a;
+  --accent-sky:        #38bdf8;
+  --accent-amber:      #f59e0b;
+  --accent-rose:       #f43f5e;
+
+  --section-gap: 32px;
+  --space-6: 24px;
+  --card-pad: 24px;
+}
+
+/* =====================================================
+   BASE — body text/bg defaults
+   ===================================================== */
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =====================================================
+   SCROLLBAR
+   ===================================================== */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: #3a3d4a; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #555870; }
+
+/* =====================================================
+   ANIMATED BACKGROUND
+   ===================================================== */
+.animated-bg {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 80% at 20% 10%, rgba(124, 91, 246, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 60% at 80% 90%, rgba(16, 217, 138, 0.04) 0%, transparent 60%),
+    #0a0b0f;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* =====================================================
+   GLASS UTILITIES
+   ===================================================== */
+.glass {
+  background: rgba(22, 24, 31, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #2a2d3a;
+}
+
+.glass-bright {
+  background: rgba(30, 32, 40, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid #3a3d4a;
+}
+
+/* =====================================================
+   GRADIENT TEXT
+   ===================================================== */
+.gradient-text {
+  background: linear-gradient(135deg, #7c5bf6, #38bdf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* =====================================================
+   DASHBOARD SHELL — single source of page padding
+   ===================================================== */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.main-area {
+  flex: 1 1 0%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+/* Every dashboard page gets its padding from here only */
+.page-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+@media (min-width: 640px)  { .page-container { padding: 28px; } }
+@media (min-width: 1024px) { .page-container { padding: 32px 40px; } }
+@media (min-width: 1280px) { .page-container { padding: 40px 48px; } }
+
+/* =====================================================
+   SIDEBAR NAV ACTIVE STATE
+   ===================================================== */
+.nav-item {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 60%;
+  width: 3px;
+  background: #7c5bf6;
+  border-radius: 0 4px 4px 0;
+}
+
+/* =====================================================
+   PAGE TYPOGRAPHY — consistent across all pages
+   ===================================================== */
+.page-header {
+  margin-bottom: 32px;
+}
+
+.page-title {
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #f0f2f8;
+  margin-bottom: 6px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: #8b90a8;
+  line-height: 1.5;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f0f2f8;
+}
+
+/* =====================================================
+   CARD SYSTEM
+   ===================================================== */
+.card {
+  background: #16181f;
+  border: 1px solid #2a2d3a;
+  border-radius: 16px;
+  padding: 24px;
+  transition: border-color 0.2s ease;
+}
+
+.card:hover { border-color: #3a3d4a; }
+
+/* card with no padding — for tables */
+.card-flush {
+  background: #16181f;
+  border: 1px solid #2a2d3a;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.card-flush:hover { border-color: #3a3d4a; }
+
+/* toolbar row inside card-flush */
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #2a2d3a;
+}
+
+/* stat card with coloured top stripe */
+.stat-card {
+  background: #16181f;
+  border: 1px solid #2a2d3a;
+  border-radius: 16px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+  border-color: #3a3d4a;
+  transform: translateY(-1px);
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+}
+
+.stat-card.violet::before  { background: linear-gradient(90deg, #7c5bf6, transparent); }
+.stat-card.emerald::before { background: linear-gradient(90deg, #10d98a, transparent); }
+.stat-card.sky::before     { background: linear-gradient(90deg, #38bdf8, transparent); }
+.stat-card.amber::before   { background: linear-gradient(90deg, #f59e0b, transparent); }
+.stat-card.rose::before    { background: linear-gradient(90deg, #f43f5e, transparent); }
+
+/* =====================================================
+   FORM INPUTS
+   ===================================================== */
+.input-field {
+  width: 100%;
+  height: 44px;
+  background: #111218;
+  border: 1px solid #2a2d3a;
+  border-radius: 12px;
+  padding: 11px 14px;
+  color: #f0f2f8;
+  font-size: 14px;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.input-field:focus {
+  border-color: #7c5bf6;
+  box-shadow: 0 0 0 3px rgba(124, 91, 246, 0.12);
+}
+
+.input-field::placeholder { color: #555870; font-size: 13px; }
+select.input-field { cursor: pointer; padding-right: 36px; }
+select.input-field option { background: #111218; color: #f0f2f8; }
+textarea.input-field { height: auto; min-height: 100px; resize: vertical; }
+
+/* =====================================================
+   BUTTONS
+   ===================================================== */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  background: linear-gradient(135deg, #7c5bf6, #5b3fd4);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px rgba(124, 91, 246, 0.35);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  background: #1e2028;
+  color: #f0f2f8;
+  border: 1px solid #2a2d3a;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.btn-secondary:hover { background: #2a2d3a; border-color: #3a3d4a; }
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  background: rgba(244, 63, 94, 0.15);
+  color: #f43f5e;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-danger:hover { background: rgba(244, 63, 94, 0.25); }
+
+/* =====================================================
+   BADGES
+   ===================================================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* =====================================================
+   TABLES
+   ===================================================== */
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 12px 24px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #555870;
+  border-bottom: 1px solid #2a2d3a;
+  white-space: nowrap;
+  background: #16181f;
+}
+
+.data-table td {
+  padding: 14px 24px;
+  border-bottom: 1px solid #2a2d3a;
+  vertical-align: middle;
+  font-size: 14px;
+}
+
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tbody tr { transition: background-color 0.15s ease; }
+.data-table tbody tr:hover { background: #1e2028; }
+
+/* =====================================================
+   MODALS
+   ===================================================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+}
+
+.modal-panel {
+  background: #16181f;
+  border: 1px solid #3a3d4a;
+  border-radius: 20px;
+  padding: 24px;
+  width: 100%;
+  max-width: 480px;
+}
+
+/* =====================================================
+   ALERTS
+   ===================================================== */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px solid transparent;
+}
+
+.alert-error   { background: rgba(244, 63, 94, 0.09);  border-color: rgba(244, 63, 94, 0.28);  color: #f43f5e; }
+.alert-success { background: rgba(16, 217, 138, 0.09); border-color: rgba(16, 217, 138, 0.28); color: #10d98a; }
+.alert-info    { background: rgba(56, 189, 248, 0.09); border-color: rgba(56, 189, 248, 0.28); color: #38bdf8; }
+
+/* =====================================================
+   CHAT BUBBLES
+   ===================================================== */
+.chat-bubble-own {
+  background: linear-gradient(135deg, #7c5bf6, #5b3fd4);
+  border-radius: 18px 18px 4px 18px;
+}
+
+.chat-bubble-other {
+  background: #1e2028;
+  border: 1px solid #2a2d3a;
+  border-radius: 18px 18px 18px 4px;
+}
+
+/* =====================================================
+   ANIMATIONS
+   ===================================================== */
+@keyframes timer-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.timer-pulse { animation: timer-pulse 1.5s ease-in-out infinite; }
