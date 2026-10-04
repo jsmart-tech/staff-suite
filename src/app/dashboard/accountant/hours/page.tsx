@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, Task } from '@/types';
 import { formatCurrency, getInitials } from '@/lib/utils';
-import { Clock, Download, Search, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Search, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface HoursRow {
   profile: Profile;
@@ -16,7 +16,6 @@ interface HoursRow {
 
 export default function AccountantHoursPage() {
   const [rows, setRows] = useState<HoursRow[]>([]);
-  const [filtered, setFiltered] = useState<HoursRow[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -49,20 +48,19 @@ export default function AccountantHoursPage() {
         return { profile: p as Profile, tasks: userTasks as Task[], totalHours, byDate };
       });
       setRows(result);
-      setFiltered(result);
       setLoading(false);
     };
     fetch();
   }, []);
 
-  useEffect(() => {
-    if (!search) { setFiltered(rows); return; }
+  const filtered = useMemo(() => {
+    if (!search) return rows;
     const q = search.toLowerCase();
-    setFiltered(rows.filter(r =>
+    return rows.filter(r =>
       r.profile.full_name?.toLowerCase().includes(q) ||
       r.profile.email.toLowerCase().includes(q) ||
       r.profile.department?.toLowerCase().includes(q)
-    ));
+    );
   }, [search, rows]);
 
   const weekLabel = weekOffset === 0 ? 'This Week'

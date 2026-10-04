@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
-import { formatCurrency, getInitials, getRoleBadgeColor } from '@/lib/utils';
+import { formatCurrency, getInitials } from '@/lib/utils';
 import { DollarSign, Download, Search, TrendingUp, Users, Clock } from 'lucide-react';
 
 interface PayrollRow {
@@ -20,7 +20,6 @@ interface PayrollRow {
 
 export function AccountantDashboard({ profile }: { profile: Profile }) {
   const [payroll, setPayroll] = useState<PayrollRow[]>([]);
-  const [filtered, setFiltered] = useState<PayrollRow[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [totalPay, setTotalPay] = useState(0);
@@ -50,7 +49,6 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
 
       rows.sort((a, b) => b.total_pay - a.total_pay);
       setPayroll(rows);
-      setFiltered(rows);
       setTotalPay(rows.reduce((s, r) => s + r.total_pay, 0));
       setTotalHours(rows.reduce((s, r) => s + r.total_hours, 0));
       setLoading(false);
@@ -58,14 +56,14 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
     fetch();
   }, []);
 
-  useEffect(() => {
-    if (!search) { setFiltered(payroll); return; }
+  const filtered = useMemo(() => {
+    if (!search) return payroll;
     const q = search.toLowerCase();
-    setFiltered(payroll.filter(r =>
+    return payroll.filter(r =>
       r.full_name?.toLowerCase().includes(q) ||
       r.email.toLowerCase().includes(q) ||
       r.department?.toLowerCase().includes(q)
-    ));
+    );
   }, [search, payroll]);
 
   const exportCSV = () => {

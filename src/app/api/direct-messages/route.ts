@@ -9,7 +9,8 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { recipientId, content } = await request.json();
-    if (!recipientId || recipientId === user.id || !content?.trim()) return NextResponse.json({ error: 'Choose another staff member and enter a message.' }, { status: 400 });
+    if (!recipientId || recipientId === user.id || typeof content !== 'string' || !content.trim()) return NextResponse.json({ error: 'Choose another staff member and enter a message.' }, { status: 400 });
+    if (content.trim().length > 5000) return NextResponse.json({ error: 'Messages are limited to 5,000 characters.' }, { status: 400 });
 
     const admin = createAdminClient();
     const { data: recipient } = await admin.from('profiles').select('email, full_name').eq('id', recipientId).single();

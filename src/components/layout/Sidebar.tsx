@@ -1,16 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, CheckSquare, FileText, Settings,
   MessageSquare, DollarSign, Clock, LogOut, Menu, X, Zap,
-  ChevronRight, Bell, Search, User,
+  ChevronRight, User,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useAuthStore } from '@/lib/store/authStore';
 import { Profile } from '@/types';
 import { cn, getInitials, getRoleBadgeColor } from '@/lib/utils';
 
@@ -56,7 +55,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
   const roleLabel = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
 
-  const SidebarContent = () => (
+  const renderSidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className={cn('flex items-center gap-3 px-4 py-5 border-b', 'border-[var(--border)]')}>
@@ -193,7 +192,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
         className="hidden lg:flex flex-col h-screen sticky top-0 flex-shrink-0 overflow-hidden"
         style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}
       >
-        <SidebarContent />
+        {renderSidebarContent()}
       </motion.aside>
 
       {/* Mobile toggle button */}
@@ -230,7 +229,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
               >
                 <X size={16} />
               </button>
-              <SidebarContent />
+              {renderSidebarContent()}
             </motion.aside>
           </>
         )}

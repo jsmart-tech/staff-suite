@@ -41,3 +41,23 @@ export async function sendNotificationEmail({
 
   return { sent: !error, error: error?.message };
 }
+
+export async function sendNotificationEmails(notifications: Array<{
+  to: string; subject: string; heading: string; body: string; actionUrl: string; actionLabel: string;
+}>) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { sent: 0, error: 'RESEND_API_KEY is not configured.' };
+  if (notifications.length === 0) return { sent: 0 };
+  const resend = new Resend(apiKey);
+  const emails = notifications.map(({ to, subject, heading, body, actionUrl, actionLabel }) => ({
+    from: sender, to, subject,
+    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937"><h2>${escapeHtml(heading)}</h2><p style="white-space:pre-wrap;line-height:1.6">${escapeHtml(body)}</p><p><a href="${actionUrl}" style="display:inline-block;padding:12px 18px;background:#6d45e8;color:#fff;text-decoration:none;border-radius:8px">${escapeHtml(actionLabel)}</a></p><p style="font-size:12px;color:#6b7280">You received this because you are a Blessed Path Staff Suite team member.</p></div>`,
+  }));
+  let sent = 0;
+  for (let index = 0; index < emails.length; index += 100) {
+    const { error } = await resend.batch.send(emails.slice(index, index + 100));
+    if (error) return { sent, error: error.message };
+    sent += Math.min(100, emails.length - index);
+  }
+  return { sent };
+}

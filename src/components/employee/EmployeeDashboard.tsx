@@ -27,7 +27,10 @@ export function EmployeeDashboard({ profile }: { profile: Profile }) {
     setLoading(false);
   }, [profile.id]);
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void fetchTasks(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchTasks]);
 
   // Live timer tick
   const runningTask = tasks.find(t => t.is_timer_running);

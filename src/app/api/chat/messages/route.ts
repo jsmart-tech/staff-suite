@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { sendNotificationEmail } from '@/lib/email';
+import { sendNotificationEmails } from '@/lib/email';
 
 const channels = new Set(['general', 'announcements', 'random', 'hr', 'finance']);
 
@@ -21,13 +21,12 @@ export async function POST(request: NextRequest) {
 
     const { data: recipients } = await admin.from('profiles').select('email').neq('id', user.id);
     const site = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    const results = await Promise.allSettled((recipients || []).map((recipient) => sendNotificationEmail({
+    const email = await sendNotificationEmails((recipients || []).map((recipient) => ({
       to: recipient.email, subject: `New message in #${channel}`,
       heading: `${sender?.full_name || 'A teammate'} posted in #${channel}`,
       body: content.trim(), actionUrl: `${site}/dashboard/chat`, actionLabel: 'Open chat',
     })));
-    const emailSent = results.filter((result) => result.status === 'fulfilled' && result.value.sent).length;
-    return NextResponse.json({ message, emailSent });
+    return NextResponse.json({ message, emailSent: email.sent, emailError: email.error });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unexpected error' }, { status: 500 });
   }

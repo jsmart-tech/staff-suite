@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Task, Profile, TaskStatus } from '@/types';
@@ -36,7 +36,6 @@ const defaultForm: AssignForm = {
 
 export default function AdminTasksPage() {
   const [tasks,        setTasks]        = useState<(Task & { profiles: Pick<Profile, 'full_name' | 'avatar_url' | 'department'> })[]>([]);
-  const [filtered,     setFiltered]     = useState<typeof tasks>([]);
   const [staff,        setStaff]        = useState<Pick<Profile, 'id' | 'full_name' | 'email' | 'role'>[]>([]);
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -54,23 +53,24 @@ export default function AdminTasksPage() {
       .select('*, profiles(full_name, avatar_url, department)')
       .order('created_at', { ascending: false });
     setTasks(data as typeof tasks || []);
-    setFiltered(data as typeof tasks || []);
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchTasks();
-    // Load all staff (employees + accountants) for the dropdown
-    supabase
-      .from('profiles')
-      .select('id, full_name, email, role')
-      .in('role', ['employee', 'accountant'])
-      .order('full_name')
-      .then(({ data }) => setStaff(data || []));
+    const timer = window.setTimeout(() => {
+      void fetchTasks();
+      void supabase
+        .from('profiles')
+        .select('id, full_name, email, role')
+        .in('role', ['employee', 'accountant'])
+        .order('full_name')
+        .then(({ data }) => setStaff(data || []));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   /* ── Filter logic ── */
-  useEffect(() => {
+  const filtered = useMemo(() => {
     let result = tasks;
     if (statusFilter !== 'all') result = result.filter(t => t.status === statusFilter);
     if (search) {
@@ -81,7 +81,7 @@ export default function AdminTasksPage() {
         t.description?.toLowerCase().includes(q)
       );
     }
-    setFiltered(result);
+    return result;
   }, [search, statusFilter, tasks]);
 
   const statusCounts = {
@@ -275,7 +275,7 @@ export default function AdminTasksPage() {
                 <div>
                   <h2 className="text-lg font-bold">Assign Task</h2>
                   <p className="text-[13px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                    Task will appear instantly in the staff member's active tasks
+                    Task will appear instantly in the staff member&apos;s active tasks
                   </p>
                 </div>
                 <button

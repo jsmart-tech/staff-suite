@@ -32,6 +32,10 @@ const defaultForm: TaskForm = {
   date_worked: new Date().toISOString().split('T')[0],
 };
 
+function hoursSince(startTime: string) {
+  return (Date.now() - new Date(startTime).getTime()) / 3600000;
+}
+
 export default function EmployeeTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +63,10 @@ export default function EmployeeTasksPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void fetchTasks(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchTasks]);
 
   // Real-time: refresh when admin assigns a new task to this user.
   // userId is already set by fetchTasks, so we can set up the channel
@@ -114,7 +121,7 @@ export default function EmployeeTasksPage() {
 
   const handleStopTimer = async (task: Task) => {
     if (!task.timer_start_time) return;
-    const elapsed = (Date.now() - new Date(task.timer_start_time).getTime()) / 3600000;
+    const elapsed = hoursSince(task.timer_start_time);
     const newHours = parseFloat((task.hours_spent + elapsed).toFixed(4));
     await supabase.from('tasks').update({
       is_timer_running: false,

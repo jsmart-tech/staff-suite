@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { LoginLog, Profile } from '@/types';
@@ -9,7 +9,6 @@ import { Shield, Clock, Search, RefreshCw } from 'lucide-react';
 
 export default function AdminLogsPage() {
   const [logs, setLogs] = useState<(LoginLog & { profiles: Pick<Profile, 'full_name' | 'email' | 'role'> })[]>([]);
-  const [filtered, setFiltered] = useState<typeof logs>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -23,23 +22,26 @@ export default function AdminLogsPage() {
       .order('login_time', { ascending: false })
       .limit(200);
     setLogs(data as typeof logs || []);
-    setFiltered(data as typeof logs || []);
     setLoading(false);
     setRefreshing(false);
   };
 
-  useEffect(() => { fetchLogs(); }, []);
-
   useEffect(() => {
-    if (!search) { setFiltered(logs); return; }
+    const timer = window.setTimeout(() => { void fetchLogs(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!search) return logs;
     const q = search.toLowerCase();
-    setFiltered(logs.filter(l =>
+    return logs.filter(l =>
       l.profiles?.full_name?.toLowerCase().includes(q) ||
       l.profiles?.email?.toLowerCase().includes(q) ||
       l.profiles?.role?.includes(q) ||
       l.ip_address?.includes(q)
-    ));
+    );
   }, [search, logs]);
+  const [currentTime] = useState(() => Date.now());
 
   return (
     <div>
@@ -58,7 +60,7 @@ export default function AdminLogsPage() {
         {[
           { label: 'Total Logins', value: logs.length, color: 'violet' },
           { label: 'Today', value: logs.filter(l => new Date(l.login_time).toDateString() === new Date().toDateString()).length, color: 'emerald' },
-          { label: 'This Week', value: logs.filter(l => new Date(l.login_time) > new Date(Date.now() - 7 * 86400000)).length, color: 'sky' },
+          { label: 'This Week', value: logs.filter(l => new Date(l.login_time) > new Date(currentTime - 7 * 86400000)).length, color: 'sky' },
         ].map(s => (
           <div key={s.label} className={`stat-card ${s.color}`}>
             <p className="text-2xl font-bold mb-1">{loading ? '—' : s.value}</p>

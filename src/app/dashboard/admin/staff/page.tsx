@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, UserRole } from '@/types';
@@ -23,7 +23,6 @@ const defaultInvite = { full_name: '', email: '', role: 'employee' as UserRole, 
 
 export default function AdminStaffPage() {
   const [staff, setStaff] = useState<Profile[]>([]);
-  const [filtered, setFiltered] = useState<Profile[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
@@ -44,20 +43,22 @@ export default function AdminStaffPage() {
   const fetchStaff = async () => {
     const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
     setStaff(data as Profile[] || []);
-    setFiltered(data as Profile[] || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchStaff(); }, []);
-
   useEffect(() => {
+    const timer = window.setTimeout(() => { void fetchStaff(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    setFiltered(staff.filter(s =>
+    return staff.filter(s =>
       s.full_name?.toLowerCase().includes(q) ||
       s.email.toLowerCase().includes(q) ||
       s.department?.toLowerCase().includes(q) ||
       s.role.includes(q)
-    ));
+    );
   }, [search, staff]);
 
   const handleSave = async () => {
