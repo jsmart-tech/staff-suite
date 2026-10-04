@@ -65,29 +65,43 @@ export function Sidebar({ profile }: { profile: Profile }) {
         </div>
         <AnimatePresence>
           {!collapsed && (
-            <motion.span
+            <motion.div
               initial={{ opacity: 0, width: 0 }}
               animate={{ opacity: 1, width: 'auto' }}
               exit={{ opacity: 0, width: 0 }}
-              className="text-lg font-bold overflow-hidden whitespace-nowrap"
+              className="min-w-0 overflow-hidden leading-tight"
               style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
             >
-              Blessed Path <span className="gradient-text">Staff Suite</span>
-            </motion.span>
+              <span className="block text-base font-bold whitespace-nowrap">Blessed Path</span>
+              <span className="gradient-text block text-xs font-bold uppercase tracking-[0.14em] whitespace-nowrap">Staff Portal</span>
+            </motion.div>
           )}
         </AnimatePresence>
         {/* Collapse toggle (desktop) */}
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => setCollapsed(true)}
+          aria-label="Collapse sidebar"
           className="ml-auto hidden lg:flex w-7 h-7 rounded-lg items-center justify-center transition-colors hover:bg-[var(--bg-hover)]"
           style={{ color: 'var(--text-muted)' }}
         >
-          <ChevronRight size={14} className={cn('transition-transform', collapsed ? '' : 'rotate-180')} />
+          <ChevronRight size={14} className="rotate-180" />
         </button>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        {collapsed && (
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+            className="hidden lg:flex mx-auto mb-2 h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[var(--bg-hover)]"
+            style={{ color: 'var(--accent-violet)', border: '1px solid var(--border)' }}
+          >
+            <ChevronRight size={16} />
+          </button>
+        )}
         {/* Role section label */}
         {!collapsed && (
           <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest"
