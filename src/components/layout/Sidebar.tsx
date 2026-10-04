@@ -73,7 +73,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
               className="text-lg font-bold overflow-hidden whitespace-nowrap"
               style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
             >
-              Staff<span className="gradient-text">Suite</span>
+              Blessed Path <span className="gradient-text">Staff Suite</span>
             </motion.span>
           )}
         </AnimatePresence>

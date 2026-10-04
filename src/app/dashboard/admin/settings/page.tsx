@@ -159,7 +159,7 @@ export default function AdminSettingsPage() {
     <div className="max-w-2xl">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="page-header">
         <h1 className="page-title">System Settings</h1>
-        <p className="page-subtitle">Configure your StaffSuite workspace</p>
+        <p className="page-subtitle">Configure your Blessed Path Staff Suite workspace</p>
       </motion.div>
 
       <div className="space-y-5">

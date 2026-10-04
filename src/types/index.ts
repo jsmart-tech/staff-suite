@@ -47,6 +47,22 @@ export interface ChatMessage {
   profiles?: Pick<Profile, 'full_name' | 'avatar_url' | 'role'>;
 }
 
+export interface DirectConversation {
+  id: string;
+  member_one: string;
+  member_two: string;
+  created_at: string;
+}
+
+export interface DirectMessage {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  profiles?: Pick<Profile, 'full_name' | 'avatar_url' | 'role'>;
+}
+
 export interface PayrollSummary {
   user_id: string;
   full_name: string | null;

@@ -7,7 +7,7 @@ import { Profile, UserRole } from '@/types';
 import { getInitials, getRoleBadgeColor, formatCurrency } from '@/lib/utils';
 import {
   Search, Plus, Edit2, X, Loader2, Users,
-  Mail, Phone, Building, DollarSign, UserCog, Send,
+  Mail, Phone, Building, DollarSign, UserCog, Send, Trash2,
 } from 'lucide-react';
 
 const DEPARTMENTS = ['Engineering', 'Design', 'Marketing', 'Finance', 'Operations', 'HR', 'Sales', 'Legal'];
@@ -37,6 +37,7 @@ export default function AdminStaffPage() {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -116,6 +117,23 @@ export default function AdminStaffPage() {
     } finally {
       setInviting(false);
     }
+  };
+
+  const handleDelete = async (staffMember: Profile) => {
+    const name = staffMember.full_name || staffMember.email;
+    if (!window.confirm(`Delete ${name}? This permanently removes their account, tasks, and messages.`)) return;
+    setDeletingId(staffMember.id);
+    setError('');
+    const response = await fetch(`/api/users/${staffMember.id}`, { method: 'DELETE' });
+    const result = await response.json().catch(() => ({}));
+    setDeletingId(null);
+    if (!response.ok) {
+      setError(result.error || 'Unable to delete this user.');
+      return;
+    }
+    setSuccess(`${name} was deleted.`);
+    fetchStaff();
+    setTimeout(() => setSuccess(''), 3000);
   };
 
   return (
@@ -242,13 +260,25 @@ export default function AdminStaffPage() {
                         </span>
                       </td>
                       <td>
-                        <button
-                          onClick={() => setEditingProfile({ ...s })}
-                          className="p-2 rounded-lg transition-colors hover:bg-[rgba(124,91,246,0.15)]"
-                          style={{ color: 'var(--accent-violet)' }}
-                        >
-                          <Edit2 size={15} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingProfile({ ...s })}
+                            className="p-2 rounded-lg transition-colors hover:bg-[rgba(124,91,246,0.15)]"
+                            style={{ color: 'var(--accent-violet)' }}
+                            aria-label={`Edit ${s.full_name || s.email}`}
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(s)}
+                            disabled={deletingId === s.id}
+                            className="p-2 rounded-lg transition-colors hover:bg-[rgba(244,63,94,0.15)] disabled:opacity-50"
+                            style={{ color: 'var(--accent-rose)' }}
+                            aria-label={`Delete ${s.full_name || s.email}`}
+                          >
+                            {deletingId === s.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

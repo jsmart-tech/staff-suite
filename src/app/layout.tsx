@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'StaffSuite — Staff Management & Productivity',
+  title: 'Blessed Path Staff Suite — Staff Management & Productivity',
   description: 'A powerful staff management and productivity platform with real-time collaboration, task tracking, and payroll insights.',
 };
 

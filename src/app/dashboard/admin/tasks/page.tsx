@@ -102,18 +102,15 @@ export default function AdminTasksPage() {
     if (!form.title.trim()) { setSaveError('Task title is required.'); return; }
 
     setSaving(true);
-    const { error } = await supabase.from('tasks').insert({
-      user_id:      form.user_id,
-      title:        form.title.trim(),
-      description:  form.description.trim() || null,
-      status:       form.status,
-      hours_spent:  Number(form.hours_spent) || 0,
-      date_worked:  form.date_worked,
-      is_timer_running: false,
+    const response = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
     });
+    const result = await response.json().catch(() => ({}));
     setSaving(false);
 
-    if (error) { setSaveError(error.message); return; }
+    if (!response.ok) { setSaveError(result.error || 'Unable to assign this task.'); return; }
 
     setShowModal(false);
     setForm(defaultForm);
@@ -122,7 +119,7 @@ export default function AdminTasksPage() {
 
   return (
     <div>
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="page-header">
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="page-header flex items-start justify-between gap-4">
         <div>
           <h1 className="page-title">All Tasks</h1>
           <p className="page-subtitle">Global overview of all staff tasks and work logs</p>

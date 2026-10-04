@@ -1,321 +1,110 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { ChatMessage, Profile } from '@/types';
+import { Profile } from '@/types';
 import { getInitials, getRoleBadgeColor } from '@/lib/utils';
-import { Send, Hash, Users, Paperclip, Smile, ChevronDown } from 'lucide-react';
+import { Hash, MessageCircle, Send, Users } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 const CHANNELS = ['general', 'announcements', 'random', 'hr', 'finance'];
+type Message = { id: string; sender_id: string; content: string; created_at: string; profiles?: Pick<Profile, 'full_name' | 'avatar_url' | 'role'> };
+type ActiveChat = { kind: 'channel'; id: string; label: string } | { kind: 'direct'; id: string; label: string };
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<(ChatMessage & { profiles: Pick<Profile, 'full_name' | 'avatar_url' | 'role'> })[]>([]);
-  const [content, setContent] = useState('');
-  const [channel, setChannel] = useState('general');
-  const [userId, setUserId] = useState('');
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [onlineCount, setOnlineCount] = useState(1);
-  const [sending, setSending] = useState(false);
-  const [showScrollBtn, setShowScrollBtn] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
+  const [active, setActive] = useState<ActiveChat>({ kind: 'channel', id: 'general', label: 'general' });
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [contacts, setContacts] = useState<Pick<Profile, 'id' | 'full_name' | 'email' | 'role'>[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [content, setContent] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const endRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  const scrollToBottom = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), []);
 
-  // Fetch initial data + subscribe to realtime
   useEffect(() => {
-    const init = async () => {
+    const loadUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      setUserId(user.id);
-
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-      setProfile(prof as Profile);
-
-      const { data } = await supabase
-        .from('chat_messages')
-        .select('*, profiles(full_name, avatar_url, role)')
-        .eq('channel', channel)
-        .order('created_at', { ascending: true })
-        .limit(100);
-      setMessages(data as typeof messages || []);
-      setTimeout(scrollToBottom, 100);
+      const [{ data: me }, { data: staff }] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('profiles').select('id, full_name, email, role').neq('id', user.id).order('full_name'),
+      ]);
+      setProfile(me as Profile);
+      setContacts(staff || []);
     };
-    init();
-  }, [channel]);
-
-  // Realtime subscription
-  useEffect(() => {
-    const sub = supabase
-      .channel(`chat:${channel}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'chat_messages',
-        filter: `channel=eq.${channel}`,
-      }, async (payload) => {
-        const { data } = await supabase
-          .from('chat_messages')
-          .select('*, profiles(full_name, avatar_url, role)')
-          .eq('id', payload.new.id)
-          .single();
-        if (data) {
-          setMessages(prev => [...prev, data as typeof messages[0]]);
-          setTimeout(scrollToBottom, 50);
-        }
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(sub); };
-  }, [channel, scrollToBottom]);
-
-  const handleScroll = () => {
-    const el = containerRef.current;
-    if (!el) return;
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-    setShowScrollBtn(!isNearBottom);
-  };
-
-  const handleSend = async () => {
-    if (!content.trim() || sending) return;
-    setSending(true);
-    await supabase.from('chat_messages').insert({
-      sender_id: userId,
-      content: content.trim(),
-      channel,
-    });
-    setContent('');
-    setSending(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  // Group messages by date
-  const groupedMessages = messages.reduce<{ date: string; msgs: typeof messages }[]>((groups, msg) => {
-    const date = new Date(msg.created_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-    const last = groups[groups.length - 1];
-    if (last && last.date === date) { last.msgs.push(msg); }
-    else { groups.push({ date, msgs: [msg] }); }
-    return groups;
+    loadUser();
   }, []);
 
-  return (
-    <div
-      className="flex rounded-2xl overflow-hidden"
-      style={{
-        height: 'calc(100vh - var(--page-pad-y) * 2)',
-        border: '1px solid var(--border)',
-        background: 'var(--bg-card)',
-      }}
-    >
+  useEffect(() => {
+    if (!profile) return;
+    const loadMessages = async () => {
+      setError('');
+      setMessages([]);
+      setConversationId(null);
+      if (active.kind === 'channel') {
+        const { data, error: fetchError } = await supabase.from('chat_messages')
+          .select('*, profiles(full_name, avatar_url, role)').eq('channel', active.id)
+          .order('created_at', { ascending: true }).limit(100);
+        if (fetchError) setError(fetchError.message);
+        setMessages((data || []) as Message[]);
+      } else {
+        const [member_one, member_two] = [profile.id, active.id].sort();
+        const { data: conversation, error: fetchError } = await supabase.from('direct_conversations')
+          .select('id').eq('member_one', member_one).eq('member_two', member_two).maybeSingle();
+        if (fetchError) setError(fetchError.message);
+        if (!conversation) return;
+        setConversationId(conversation.id);
+        const { data } = await supabase.from('direct_messages')
+          .select('*, profiles(full_name, avatar_url, role)').eq('conversation_id', conversation.id)
+          .order('created_at', { ascending: true }).limit(100);
+        setMessages((data || []) as Message[]);
+      }
+      setTimeout(scrollToBottom, 50);
+    };
+    loadMessages();
+  }, [active, profile, scrollToBottom]);
 
-      {/* Channels Sidebar */}
-      <div className="w-52 flex-shrink-0 flex flex-col border-r border-[var(--border)]"
-        style={{ background: 'var(--bg-secondary)' }}>
-        <div className="p-4 border-b border-[var(--border)]">
-          <h2 className="font-bold text-sm mb-0.5">Team Chat</h2>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ background: 'var(--accent-emerald)' }} />
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{onlineCount} online</span>
-          </div>
-        </div>
+  useEffect(() => {
+    const table = active.kind === 'channel' ? 'chat_messages' : 'direct_messages';
+    const filter = active.kind === 'channel' ? `channel=eq.${active.id}` : conversationId ? `conversation_id=eq.${conversationId}` : undefined;
+    if (active.kind === 'direct' && !conversationId) return;
+    const sub = supabase.channel(`chat-${active.kind}-${active.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table, filter }, async (payload) => {
+        const { data } = await supabase.from(table).select('*, profiles(full_name, avatar_url, role)').eq('id', payload.new.id).single();
+        if (data) setMessages((previous) => previous.some((message) => message.id === data.id) ? previous : [...previous, data as Message]);
+        setTimeout(scrollToBottom, 50);
+      }).subscribe();
+    return () => { supabase.removeChannel(sub); };
+  }, [active, conversationId, scrollToBottom]);
 
-        <div className="p-3">
-          <p className="text-[10px] font-bold uppercase tracking-widest px-2 mb-2"
-            style={{ color: 'var(--text-muted)' }}>Channels</p>
-          <div className="space-y-0.5">
-            {CHANNELS.map(ch => (
-              <button
-                key={ch}
-                onClick={() => setChannel(ch)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all text-left"
-                style={{
-                  background: channel === ch ? 'rgba(124,91,246,0.15)' : 'transparent',
-                  color: channel === ch ? 'white' : 'var(--text-secondary)',
-                  fontWeight: channel === ch ? 600 : 400,
-                }}
-              >
-                <Hash size={14} style={{ color: channel === ch ? 'var(--accent-violet)' : 'var(--text-muted)', flexShrink: 0 }} />
-                {ch}
-              </button>
-            ))}
-          </div>
-        </div>
+  const send = async () => {
+    if (!content.trim() || sending) return;
+    setSending(true); setError('');
+    const endpoint = active.kind === 'channel' ? '/api/chat/messages' : '/api/direct-messages';
+    const body = active.kind === 'channel' ? { channel: active.id, content } : { recipientId: active.id, content };
+    const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const result = await response.json().catch(() => ({}));
+    setSending(false);
+    if (!response.ok) { setError(result.error || 'Message could not be sent.'); return; }
+    if (active.kind === 'direct' && result.conversationId) setConversationId(result.conversationId);
+    setContent('');
+  };
 
-        {/* Current user */}
-        {profile && (
-          <div className="mt-auto p-3 border-t border-[var(--border)]">
-            <div className="flex items-center gap-2 px-2 py-2 rounded-lg" style={{ background: 'var(--bg-hover)' }}>
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg, #7c5bf6, #5b3fd4)', color: 'white' }}>
-                {getInitials(profile.full_name)}
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-medium truncate">{profile.full_name || 'You'}</p>
-                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{profile.role}</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Main Chat */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Channel Header */}
-        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[var(--border)]">
-          <Hash size={18} style={{ color: 'var(--accent-violet)' }} />
-          <span className="font-semibold">{channel}</span>
-          <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-hover)', color: 'var(--text-muted)' }}>
-            {messages.length} messages
-          </span>
-          <div className="ml-auto flex items-center gap-1.5">
-            <Users size={14} style={{ color: 'var(--text-muted)' }} />
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Team</span>
-          </div>
-        </div>
-
-        {/* Messages */}
-        <div
-          ref={containerRef}
-          onScroll={handleScroll}
-          className="flex-1 overflow-y-auto p-4 space-y-1"
-        >
-          {groupedMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-                style={{ background: 'rgba(124,91,246,0.15)' }}>
-                <Hash size={24} style={{ color: 'var(--accent-violet)' }} />
-              </div>
-              <p className="font-semibold mb-1">Welcome to #{channel}!</p>
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                This is the beginning of the #{channel} channel.
-              </p>
-            </div>
-          ) : (
-            groupedMessages.map(({ date, msgs }) => (
-              <div key={date}>
-                {/* Date divider */}
-                <div className="flex items-center gap-3 my-4">
-                  <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                  <span className="text-xs px-3 py-1 rounded-full font-medium"
-                    style={{ background: 'var(--bg-hover)', color: 'var(--text-muted)' }}>
-                    {date}
-                  </span>
-                  <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                </div>
-
-                {msgs.map((msg, i) => {
-                  const isOwn = msg.sender_id === userId;
-                  const prevMsg = i > 0 ? msgs[i - 1] : null;
-                  const isGrouped = prevMsg?.sender_id === msg.sender_id;
-
-                  return (
-                    <motion.div
-                      key={msg.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'} ${isGrouped ? 'mt-0.5' : 'mt-3'}`}
-                    >
-                      {/* Avatar */}
-                      {!isGrouped ? (
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 self-end"
-                          style={{ background: isOwn ? 'linear-gradient(135deg, #7c5bf6, #5b3fd4)' : 'linear-gradient(135deg, #38bdf8, #10d98a)', color: 'white' }}>
-                          {getInitials(msg.profiles?.full_name)}
-                        </div>
-                      ) : (
-                        <div className="w-8 flex-shrink-0" />
-                      )}
-
-                      {/* Bubble */}
-                      <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
-                        {!isGrouped && (
-                          <div className={`flex items-center gap-2 mb-1 ${isOwn ? 'flex-row-reverse' : ''}`}>
-                            <span className="text-xs font-semibold">{msg.profiles?.full_name || 'Unknown'}</span>
-                            <span className={`badge text-[9px] px-1.5 py-0 ${getRoleBadgeColor(msg.profiles?.role || 'employee')}`}>
-                              {msg.profiles?.role}
-                            </span>
-                            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                              {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
-                            </span>
-                          </div>
-                        )}
-                        <div className={`px-3.5 py-2.5 text-sm leading-relaxed ${isOwn ? 'chat-bubble-own' : 'chat-bubble-other'}`}>
-                          {msg.content}
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Scroll to bottom */}
-        <AnimatePresence>
-          {showScrollBtn && (
-            <motion.button
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              onClick={scrollToBottom}
-              className="absolute bottom-20 right-8 w-9 h-9 rounded-full flex items-center justify-center shadow-lg"
-              style={{ background: 'var(--accent-violet)', color: 'white' }}
-            >
-              <ChevronDown size={16} />
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        {/* Input */}
-        <div className="p-4 border-t border-[var(--border)]">
-          <div className="flex items-end gap-2 rounded-2xl p-2"
-            style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}>
-            <button className="p-2 rounded-lg transition-colors hover:bg-[var(--bg-card)]"
-              style={{ color: 'var(--text-muted)' }}>
-              <Paperclip size={16} />
-            </button>
-            <textarea
-              value={content}
-              onChange={e => setContent(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={`Message #${channel}...`}
-              rows={1}
-              className="flex-1 bg-transparent resize-none outline-none text-sm py-1.5 max-h-32"
-              style={{ color: 'var(--text-primary)' }}
-            />
-            <button className="p-2 rounded-lg transition-colors hover:bg-[var(--bg-card)]"
-              style={{ color: 'var(--text-muted)' }}>
-              <Smile size={16} />
-            </button>
-            <button
-              onClick={handleSend}
-              disabled={!content.trim() || sending}
-              className="p-2 rounded-xl transition-all"
-              style={{
-                background: content.trim() ? 'var(--accent-violet)' : 'var(--bg-card)',
-                color: content.trim() ? 'white' : 'var(--text-muted)',
-              }}
-            >
-              <Send size={16} />
-            </button>
-          </div>
-          <p className="text-[11px] mt-1.5 ml-2" style={{ color: 'var(--text-muted)' }}>
-            Press Enter to send · Shift+Enter for new line
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="flex min-h-[620px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)]">
+    <aside className="w-60 shrink-0 border-r border-[var(--border)] bg-[var(--bg-secondary)]">
+      <div className="border-b border-[var(--border)] p-5"><h1 className="font-bold">Team Chat</h1><p className="mt-1 text-xs text-[var(--text-muted)]">Channels and direct messages</p></div>
+      <div className="p-3"><p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Channels</p>{CHANNELS.map((channel) => <button key={channel} onClick={() => setActive({ kind: 'channel', id: channel, label: channel })} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active.kind === 'channel' && active.id === channel ? 'bg-[rgba(124,91,246,0.18)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}><Hash size={14}/>{channel}</button>)}</div>
+      <div className="border-t border-[var(--border)] p-3"><p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Direct messages</p>{contacts.map((contact) => <button key={contact.id} onClick={() => setActive({ kind: 'direct', id: contact.id, label: contact.full_name || contact.email })} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active.kind === 'direct' && active.id === contact.id ? 'bg-[rgba(124,91,246,0.18)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent-sky)] text-[10px] font-bold text-white">{getInitials(contact.full_name)}</span><span className="truncate">{contact.full_name || contact.email}</span></button>)}</div>
+    </aside>
+    <main className="flex min-w-0 flex-1 flex-col">
+      <header className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-4">{active.kind === 'channel' ? <Hash size={18} className="text-[var(--accent-violet)]"/> : <MessageCircle size={18} className="text-[var(--accent-violet)]"/>}<div><h2 className="font-semibold">{active.label}</h2><p className="text-xs text-[var(--text-muted)]">{active.kind === 'channel' ? 'Team channel - email notifications are sent to the team' : 'Private conversation'}</p></div><span className="ml-auto rounded-full bg-[var(--bg-hover)] px-2 py-1 text-xs text-[var(--text-muted)]">{messages.length} messages</span></header>
+      <section className="flex-1 space-y-4 overflow-y-auto p-5">{messages.length === 0 ? <div className="flex h-full min-h-80 flex-col items-center justify-center text-center"><div className="mb-3 rounded-2xl bg-[rgba(124,91,246,0.15)] p-4"><Users className="text-[var(--accent-violet)]"/></div><p className="font-semibold">Start the conversation</p><p className="mt-1 text-sm text-[var(--text-muted)]">{active.kind === 'direct' ? `Send a private message to ${active.label}.` : `Say hello in #${active.label}.`}</p></div> : messages.map((message) => { const own = message.sender_id === profile?.id; return <motion.article key={message.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${own ? 'flex-row-reverse' : ''}`}><div className="mt-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent-violet)] text-[10px] font-bold text-white">{getInitials(message.profiles?.full_name)}</div><div className={`max-w-[72%] ${own ? 'items-end' : 'items-start'} flex flex-col`}><div className="mb-1 flex items-center gap-2 text-xs"><span className="font-semibold">{message.profiles?.full_name || 'Unknown'}</span><span className={`badge px-1.5 py-0 text-[9px] ${getRoleBadgeColor(message.profiles?.role || 'employee')}`}>{message.profiles?.role}</span><span className="text-[var(--text-muted)]">{formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}</span></div><p className={`whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${own ? 'chat-bubble-own' : 'chat-bubble-other'}`}>{message.content}</p></div></motion.article>; })}<div ref={endRef}/></section>
+      <footer className="border-t border-[var(--border)] p-4">{error && <p className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>}<div className="flex items-end gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] p-2"><textarea value={content} onChange={(event) => setContent(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder={active.kind === 'channel' ? `Message #${active.label}` : `Message ${active.label}`} rows={1} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none"/><button onClick={send} disabled={!content.trim() || sending} className="rounded-xl bg-[var(--accent-violet)] p-3 text-white disabled:opacity-50"><Send size={16}/></button></div><p className="mt-1.5 px-2 text-[11px] text-[var(--text-muted)]">Enter to send - Shift + Enter for a new line</p></footer>
+    </main>
+  </div>;
 }

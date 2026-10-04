@@ -307,7 +307,7 @@ export default function LoginPage() {
               <Zap size={17} className="text-white" />
             </div>
             <span className="text-xl font-bold">
-              Staff<span className="gradient-text">Suite</span>
+              Blessed Path <span className="gradient-text">Staff Suite</span>
             </span>
           </div>
 
@@ -326,7 +326,7 @@ export default function LoginPage() {
             <p className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>
               {mode === 'login'
                 ? 'Sign in to access your workspace'
-                : 'Set up your StaffSuite account'}
+                : 'Set up your Blessed Path Staff Suite account'}
             </p>
           </div>
 
