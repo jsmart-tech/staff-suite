@@ -3,8 +3,12 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const SUPABASE_URL = 'https://wdokcbiurmurmdikkiot.supabase.co';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indkb2tjYml1cm11cm1kaWtraW90Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NTM3MDksImV4cCI6MjEwNjUyOTcwOX0.kBblMPQJRqTkixftamJjaYFUuTzBEIPXTfKYNXXbb4s';
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !ANON_KEY) {
+  throw new Error('Set SUPABASE_URL and SUPABASE_ANON_KEY before running this script.');
+}
 
 // Split schema into individual statements (skip comments and empty lines)
 const schemaPath = path.join(__dirname, '..', 'supabase', 'schema.sql');
