@@ -1,0 +1,22 @@
+export async function scheduleChatReminder(notificationId: string) {
+  const token = process.env.QSTASH_TOKEN;
+  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  const callbackSecret = process.env.CHAT_REMINDER_CRON_SECRET;
+  if (!token || !site || !callbackSecret) {
+    return { error: 'QStash scheduling is not configured.' };
+  }
+
+  const callbackUrl = `${site}/api/qstash/chat-email-reminders`;
+  const response = await fetch(`https://qstash.upstash.io/v2/publish/${callbackUrl}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Upstash-Delay': '30m',
+      'Upstash-Forward-x-cron-secret': callbackSecret,
+    },
+    body: JSON.stringify({ notificationId }),
+  });
+  if (!response.ok) return { error: `QStash returned ${response.status}.` };
+  return {};
+}

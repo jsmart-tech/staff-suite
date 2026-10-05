@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { scheduleChatReminder } from '@/lib/qstash';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
     const scopeKey = `direct:${conversation.id}`;
-    const { error: reminderError } = await admin.from('chat_email_notifications').upsert({
+    const { data: queuedReminder, error: reminderError } = await admin.from('chat_email_notifications').upsert({
       recipient_id: recipientId,
       recipient_email: recipient.email,
       scope_key: scopeKey,
@@ -43,8 +44,12 @@ export async function POST(request: NextRequest) {
       due_at: new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
       seen_at: null,
       sent_at: null,
-    }, { onConflict: 'recipient_id,scope_key' });
+    }, { onConflict: 'recipient_id,scope_key' }).select('id').single();
     if (reminderError) console.error('Unable to queue direct-message email reminder:', reminderError.message);
+    if (queuedReminder) {
+      const scheduled = await scheduleChatReminder(queuedReminder.id);
+      if (scheduled.error) console.error(scheduled.error);
+    }
     await admin.from('chat_email_notifications').update({ seen_at: now.toISOString() })
       .eq('recipient_id', user.id).eq('scope_key', scopeKey).is('sent_at', null);
     return NextResponse.json({ message, conversationId: conversation.id });

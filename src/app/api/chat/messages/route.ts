@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { scheduleChatReminder } from '@/lib/qstash';
 
 const channels = new Set(['general', 'announcements', 'random', 'hr', 'finance']);
 
@@ -33,9 +34,13 @@ export async function POST(request: NextRequest) {
       sent_at: null,
     }));
     if (reminder.length) {
-      const { error: reminderError } = await admin.from('chat_email_notifications')
-        .upsert(reminder, { onConflict: 'recipient_id,scope_key' });
+      const { data: queuedReminders, error: reminderError } = await admin.from('chat_email_notifications')
+        .upsert(reminder, { onConflict: 'recipient_id,scope_key' }).select('id');
       if (reminderError) console.error('Unable to queue chat email reminders:', reminderError.message);
+      for (const queuedReminder of queuedReminders || []) {
+        const scheduled = await scheduleChatReminder(queuedReminder.id);
+        if (scheduled.error) console.error(scheduled.error);
+      }
     }
     await admin.from('chat_email_notifications').update({ seen_at: now.toISOString() })
       .eq('recipient_id', user.id).eq('scope_key', `channel:${channel}`).is('sent_at', null);
