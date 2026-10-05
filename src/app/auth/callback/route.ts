@@ -28,8 +28,10 @@ export async function GET(req: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) return NextResponse.redirect(new URL('/login?error=invalid_token', req.url));
 
-    const dest = (type === 'invite' || type === 'recovery')
-      ? '/accept-invite'
+    const dest = type === 'recovery'
+      ? '/accept-invite?mode=recovery'
+      : type === 'invite'
+        ? '/accept-invite'
       : next;
     return NextResponse.redirect(new URL(dest, req.url));
   }
@@ -43,8 +45,10 @@ export async function GET(req: NextRequest) {
     });
 
     if (!error) {
-      const dest = (type === 'invite' || type === 'recovery')
-        ? '/accept-invite'
+      const dest = type === 'recovery'
+        ? '/accept-invite?mode=recovery'
+        : type === 'invite'
+          ? '/accept-invite'
         : next;
       return NextResponse.redirect(new URL(dest, req.url));
     }
@@ -57,8 +61,10 @@ export async function GET(req: NextRequest) {
      script reads window.location.hash and bounces the browser to the
      correct destination, preserving the hash so Supabase JS can pick
      up the session tokens.                                             */
-  const dest = (type === 'invite' || type === 'recovery')
-    ? '/accept-invite'
+  const dest = type === 'recovery'
+    ? '/accept-invite?mode=recovery'
+    : type === 'invite'
+      ? '/accept-invite'
     : next;
 
   const html = `<!DOCTYPE html>

@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/client';
 
 export default function AcceptInvitePage() {
   const router = useRouter();
+  const isRecovery = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('mode') === 'recovery';
   const supabase = createClient();
 
   const [password, setPassword]               = useState('');
@@ -86,7 +88,7 @@ export default function AcceptInvitePage() {
 
       setDone(true);
       // Give user a moment to see the success state, then redirect
-      setTimeout(() => router.push('/dashboard'), 1800);
+      setTimeout(() => router.push(isRecovery ? '/login?reset=success' : '/dashboard'), 1800);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
