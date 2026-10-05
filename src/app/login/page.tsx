@@ -32,6 +32,7 @@ export default function LoginPage() {
   const [password, setPassword]     = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading]       = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [error, setError]           = useState('');
   const [mode, setMode]             = useState<'login' | 'signup'>('login');
   const [selectedRole, setSelectedRole] = useState<'admin' | 'accountant' | 'employee'>('employee');
@@ -74,6 +75,26 @@ export default function LoginPage() {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!email.trim()) {
+      setError('Enter your email address first, then select Forgot password.');
+      return;
+    }
+    setResetLoading(true);
+    setError('');
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth/callback?next=/accept-invite`,
+      });
+      if (error) throw error;
+      setError('✓ If an account exists for this email, a password reset link has been sent.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unable to send a password reset email.');
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -362,7 +383,7 @@ export default function LoginPage() {
                     value={fullName}
                     onChange={e => setFullName(e.target.value)}
                     placeholder="Your full name"
-                    className="input-field pl-10"
+                    className="input-field input-with-icon"
                   />
                 </div>
               </motion.div>
@@ -389,7 +410,7 @@ export default function LoginPage() {
                   onChange={e => setEmail(e.target.value)}
                   placeholder="you@company.com"
                   required
-                  className="input-field pl-10"
+                  className="input-field input-with-icon"
                 />
               </div>
             </div>
@@ -416,7 +437,7 @@ export default function LoginPage() {
                   placeholder="Enter your password"
                   required
                   minLength={6}
-                  className="input-field pl-10 pr-11"
+                  className="input-field input-with-icon input-with-icon-right"
                 />
                 <button
                   type="button"
@@ -428,6 +449,20 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+
+            {mode === 'login' && (
+              <div className="flex justify-end -mt-2">
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={resetLoading}
+                  className="text-xs font-semibold transition-opacity hover:opacity-75 disabled:opacity-50"
+                  style={{ color: 'var(--accent-violet)' }}
+                >
+                  {resetLoading ? 'Sending reset link…' : 'Forgot password?'}
+                </button>
+              </div>
+            )}
 
             {/* Error / success message */}
             {error && (

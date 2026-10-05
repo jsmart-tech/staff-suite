@@ -199,6 +199,14 @@ body {
   border-bottom: 1px solid #2a2d3a;
 }
 
+@media (max-width: 639px) {
+  .card-header {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 16px;
+  }
+}
+
 /* stat card with coloured top stripe */
 .stat-card {
   background: #16181f;
@@ -254,6 +262,8 @@ body {
 }
 
 .input-field::placeholder { color: #555870; font-size: 13px; }
+.input-with-icon { padding-left: 44px !important; }
+.input-with-icon-right { padding-right: 48px !important; }
 select.input-field { cursor: pointer; padding-right: 36px; }
 select.input-field option { background: #111218; color: #f0f2f8; }
 textarea.input-field { height: auto; min-height: 100px; resize: vertical; }

@@ -116,19 +116,18 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card-flush">
         <div className="card-header">
           <h2 className="card-title">Payroll Summary</h2>
-          <div className="flex gap-3">
-            <div className="relative">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            <div className="relative w-full sm:w-auto">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search..."
-                className="input-field pl-9 py-2 text-sm"
-                style={{ width: '180px' }}
+                className="input-field w-full pl-9 py-2 text-sm sm:w-[180px]"
               />
             </div>
-            <button onClick={exportCSV} className="btn-secondary py-2">
+            <button onClick={exportCSV} className="btn-secondary w-full py-2 sm:w-auto">
               <Download size={14} /> Export CSV
             </button>
           </div>
