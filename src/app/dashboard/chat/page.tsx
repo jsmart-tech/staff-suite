@@ -25,6 +25,11 @@ export default function ChatPage() {
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollToBottom = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), []);
+  const markAsRead = useCallback((type: 'channel' | 'direct', id: string) => {
+    void fetch('/api/chat/read', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, id }),
+    });
+  }, []);
   const selectChat = (next: ActiveChat) => { setActive(next); setMobileChatOpen(true); };
 
   useEffect(() => {
@@ -43,12 +48,14 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!profile) return;
-    const load = async () => {
-      setError(''); setMessages([]); setConversationId(null);
+    const load = async (reset = false) => {
+      setError('');
+      if (reset) { setMessages([]); setConversationId(null); }
       if (active.kind === 'channel') {
         const { data, error: loadError } = await supabase.from('chat_messages').select('*, profiles(full_name, avatar_url, role)').eq('channel', active.id).order('created_at').limit(100);
         if (loadError) setError(loadError.message);
         setMessages((data || []) as Message[]);
+        if (reset) markAsRead('channel', active.id);
       } else {
         const [member_one, member_two] = [profile.id, active.id].sort();
         const { data: conversation, error: loadError } = await supabase.from('direct_conversations').select('id').eq('member_one', member_one).eq('member_two', member_two).maybeSingle();
@@ -57,11 +64,14 @@ export default function ChatPage() {
         setConversationId(conversation.id);
         const { data } = await supabase.from('direct_messages').select('*, profiles(full_name, avatar_url, role)').eq('conversation_id', conversation.id).order('created_at').limit(100);
         setMessages((data || []) as Message[]);
+        if (reset) markAsRead('direct', conversation.id);
       }
       window.setTimeout(scrollToBottom, 50);
     };
-    void load();
-  }, [active, profile, scrollToBottom]);
+    void load(true);
+    const refresh = window.setInterval(() => { void load(); }, 5000);
+    return () => window.clearInterval(refresh);
+  }, [active, markAsRead, profile, scrollToBottom]);
 
   useEffect(() => {
     const table = active.kind === 'channel' ? 'chat_messages' : 'direct_messages';
@@ -70,10 +80,11 @@ export default function ChatPage() {
     const channel = supabase.channel(`chat-${active.kind}-${active.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table, filter }, async payload => {
       const { data } = await supabase.from(table).select('*, profiles(full_name, avatar_url, role)').eq('id', payload.new.id).single();
       if (data) setMessages(previous => previous.some(message => message.id === data.id) ? previous : [...previous, data as Message]);
+      markAsRead(active.kind, active.kind === 'channel' ? active.id : conversationId!);
       window.setTimeout(scrollToBottom, 50);
     }).subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [active, conversationId, scrollToBottom]);
+  }, [active, conversationId, markAsRead, scrollToBottom]);
 
   const send = async () => {
     if (!content.trim() || sending) return;
@@ -85,6 +96,14 @@ export default function ChatPage() {
     setSending(false);
     if (!response.ok) { setError(result.error || 'Message could not be sent.'); return; }
     if (active.kind === 'direct' && result.conversationId) setConversationId(result.conversationId);
+    if (result.message) {
+      const sent = {
+        ...result.message,
+        profiles: profile ? { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role } : undefined,
+      } as Message;
+      setMessages(previous => previous.some(message => message.id === sent.id) ? previous : [...previous, sent]);
+      window.setTimeout(scrollToBottom, 50);
+    }
     setContent('');
   };
 

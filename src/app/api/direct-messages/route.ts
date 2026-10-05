@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { sendNotificationEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,13 +30,24 @@ export async function POST(request: NextRequest) {
     }).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    const site = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    const email = await sendNotificationEmail({
-      to: recipient.email, subject: `New direct message from ${sender?.full_name || 'a teammate'}`,
-      heading: `New message from ${sender?.full_name || 'a teammate'}`,
-      body: content.trim(), actionUrl: `${site}/dashboard/chat`, actionLabel: 'Open message',
-    });
-    return NextResponse.json({ message, conversationId: conversation.id, emailSent: email.sent });
+    const now = new Date();
+    const scopeKey = `direct:${conversation.id}`;
+    const { error: reminderError } = await admin.from('chat_email_notifications').upsert({
+      recipient_id: recipientId,
+      recipient_email: recipient.email,
+      scope_key: scopeKey,
+      message_type: 'direct',
+      conversation_id: conversation.id,
+      sender_name: sender?.full_name || 'A teammate',
+      message_preview: content.trim(),
+      due_at: new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
+      seen_at: null,
+      sent_at: null,
+    }, { onConflict: 'recipient_id,scope_key' });
+    if (reminderError) console.error('Unable to queue direct-message email reminder:', reminderError.message);
+    await admin.from('chat_email_notifications').update({ seen_at: now.toISOString() })
+      .eq('recipient_id', user.id).eq('scope_key', scopeKey).is('sent_at', null);
+    return NextResponse.json({ message, conversationId: conversation.id });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unexpected error' }, { status: 500 });
   }

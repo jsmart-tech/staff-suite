@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,9 +43,58 @@ export function Sidebar({ profile }: { profile: Profile }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [hasNewChat, setHasNewChat] = useState(false);
+  const [hasNewTask, setHasNewTask] = useState(false);
   const supabase = createClient();
 
   const filteredNav = navItems.filter(item => item.roles.includes(profile.role));
+
+  useEffect(() => {
+    const chatKey = `staff-suite:chat-seen:${profile.id}`;
+    const taskKey = `staff-suite:tasks-seen:${profile.id}`;
+    const chatSeenAt = localStorage.getItem(chatKey) ?? new Date().toISOString();
+    const taskSeenAt = localStorage.getItem(taskKey) ?? new Date().toISOString();
+    if (!localStorage.getItem(chatKey)) localStorage.setItem(chatKey, chatSeenAt);
+    if (!localStorage.getItem(taskKey)) localStorage.setItem(taskKey, taskSeenAt);
+    const viewingChat = pathname.startsWith('/dashboard/chat');
+    const viewingTasks = pathname.startsWith('/dashboard/employee/tasks');
+
+    const checkUnread = async () => {
+      const [channelMessages, directMessages, tasks] = await Promise.all([
+        supabase.from('chat_messages').select('id').neq('sender_id', profile.id).gt('created_at', chatSeenAt).limit(1),
+        supabase.from('direct_messages').select('id').neq('sender_id', profile.id).gt('created_at', chatSeenAt).limit(1),
+        profile.role === 'employee'
+          ? supabase.from('tasks').select('id').eq('user_id', profile.id).gt('created_at', taskSeenAt).limit(1)
+          : Promise.resolve({ data: [] }),
+      ]);
+      setHasNewChat(!viewingChat && Boolean(channelMessages.data?.length || directMessages.data?.length));
+      setHasNewTask(!viewingTasks && Boolean(tasks.data?.length));
+    };
+    void checkUnread();
+
+    const channel = supabase.channel(`sidebar-notifications-${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
+        if ((payload.new as { sender_id: string }).sender_id !== profile.id && !window.location.pathname.startsWith('/dashboard/chat')) setHasNewChat(true);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, payload => {
+        if ((payload.new as { sender_id: string }).sender_id !== profile.id && !window.location.pathname.startsWith('/dashboard/chat')) setHasNewChat(true);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks', filter: `user_id=eq.${profile.id}` }, () => {
+        if (!window.location.pathname.startsWith('/dashboard/employee/tasks')) setHasNewTask(true);
+      })
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [pathname, profile.id, profile.role]);
+
+  useEffect(() => {
+    if (pathname.startsWith('/dashboard/chat')) {
+      localStorage.setItem(`staff-suite:chat-seen:${profile.id}`, new Date().toISOString());
+    }
+    if (pathname.startsWith('/dashboard/employee/tasks')) {
+      localStorage.setItem(`staff-suite:tasks-seen:${profile.id}`, new Date().toISOString());
+    }
+  }, [pathname, profile.id]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -112,6 +161,8 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
         {filteredNav.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+          const isNew = (item.href === '/dashboard/chat' && hasNewChat)
+            || (item.href === '/dashboard/employee/tasks' && hasNewTask);
           return (
             <Link
               key={item.href}
@@ -137,7 +188,12 @@ export function Sidebar({ profile }: { profile: Profile }) {
                   </motion.span>
                 )}
               </AnimatePresence>
-              {!collapsed && item.badge ? (
+              {!collapsed && isNew ? (
+                <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                  style={{ background: 'rgba(16,217,138,0.16)', color: 'var(--accent-emerald)' }}>
+                  New
+                </span>
+              ) : !collapsed && item.badge ? (
                 <span className="ml-auto text-xs px-2 py-0.5 rounded-full font-semibold"
                   style={{ background: 'var(--accent-violet)', color: 'white' }}>
                   {item.badge}

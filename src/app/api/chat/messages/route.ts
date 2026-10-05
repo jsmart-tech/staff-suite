@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { sendNotificationEmails } from '@/lib/email';
 
 const channels = new Set(['general', 'announcements', 'random', 'hr', 'finance']);
 
@@ -19,14 +18,28 @@ export async function POST(request: NextRequest) {
     const { data: message, error } = await admin.from('chat_messages').insert({ sender_id: user.id, content: content.trim(), channel }).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    const { data: recipients } = await admin.from('profiles').select('email').neq('id', user.id);
-    const site = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    const email = await sendNotificationEmails((recipients || []).map((recipient) => ({
-      to: recipient.email, subject: `New message in #${channel}`,
-      heading: `${sender?.full_name || 'A teammate'} posted in #${channel}`,
-      body: content.trim(), actionUrl: `${site}/dashboard/chat`, actionLabel: 'Open chat',
-    })));
-    return NextResponse.json({ message, emailSent: email.sent, emailError: email.error });
+    const now = new Date();
+    const { data: recipients } = await admin.from('profiles').select('id, email').neq('id', user.id);
+    const reminder = (recipients || []).map((recipient) => ({
+      recipient_id: recipient.id,
+      recipient_email: recipient.email,
+      scope_key: `channel:${channel}`,
+      message_type: 'channel',
+      channel,
+      sender_name: sender?.full_name || 'A teammate',
+      message_preview: content.trim(),
+      due_at: new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
+      seen_at: null,
+      sent_at: null,
+    }));
+    if (reminder.length) {
+      const { error: reminderError } = await admin.from('chat_email_notifications')
+        .upsert(reminder, { onConflict: 'recipient_id,scope_key' });
+      if (reminderError) console.error('Unable to queue chat email reminders:', reminderError.message);
+    }
+    await admin.from('chat_email_notifications').update({ seen_at: now.toISOString() })
+      .eq('recipient_id', user.id).eq('scope_key', `channel:${channel}`).is('sent_at', null);
+    return NextResponse.json({ message });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unexpected error' }, { status: 500 });
   }
