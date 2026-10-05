@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, CheckSquare, FileText, Settings,
-  MessageSquare, DollarSign, Clock, LogOut, Menu, X, Zap,
+  MessageSquare, DollarSign, Clock, LogOut, Menu, X, Zap, Bell,
   ChevronRight, User,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -45,6 +45,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [hasNewChat, setHasNewChat] = useState(false);
   const [hasNewTask, setHasNewTask] = useState(false);
+  const [notice, setNotice] = useState<{ title: string; body: string; href: string } | null>(null);
   const supabase = createClient();
 
   const filteredNav = navItems.filter(item => item.roles.includes(profile.role));
@@ -74,13 +75,22 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
     const channel = supabase.channel(`sidebar-notifications-${profile.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
-        if ((payload.new as { sender_id: string }).sender_id !== profile.id && !window.location.pathname.startsWith('/dashboard/chat')) setHasNewChat(true);
+        if ((payload.new as { sender_id: string }).sender_id !== profile.id && !window.location.pathname.startsWith('/dashboard/chat')) {
+          setHasNewChat(true);
+          setNotice({ title: 'New message', body: 'You have a new team chat message.', href: '/dashboard/chat' });
+        }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, payload => {
-        if ((payload.new as { sender_id: string }).sender_id !== profile.id && !window.location.pathname.startsWith('/dashboard/chat')) setHasNewChat(true);
+        if ((payload.new as { sender_id: string }).sender_id !== profile.id && !window.location.pathname.startsWith('/dashboard/chat')) {
+          setHasNewChat(true);
+          setNotice({ title: 'New message', body: 'You received a new direct message.', href: '/dashboard/chat' });
+        }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks', filter: `user_id=eq.${profile.id}` }, () => {
-        if (!window.location.pathname.startsWith('/dashboard/employee/tasks')) setHasNewTask(true);
+        if (!window.location.pathname.startsWith('/dashboard/employee/tasks')) {
+          setHasNewTask(true);
+          setNotice({ title: 'New task assigned', body: 'A new task is waiting in your task list.', href: '/dashboard/employee/tasks' });
+        }
       })
       .subscribe();
 
@@ -95,6 +105,12 @@ export function Sidebar({ profile }: { profile: Profile }) {
       localStorage.setItem(`staff-suite:tasks-seen:${profile.id}`, new Date().toISOString());
     }
   }, [pathname, profile.id]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(null), 6500);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -255,6 +271,26 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
   return (
     <>
+      <AnimatePresence>
+        {notice && (
+          <motion.div
+            initial={{ opacity: 0, y: -16, x: 16 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, y: -16, x: 16 }}
+            className="fixed right-5 top-5 z-[70] w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-4 shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-[rgba(124,91,246,0.16)] p-2 text-[var(--accent-violet)]"><Bell size={18} /></div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">{notice.title}</p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">{notice.body}</p>
+                <Link href={notice.href} onClick={() => setNotice(null)} className="mt-3 inline-block text-xs font-semibold text-[var(--accent-violet)]">Open now →</Link>
+              </div>
+              <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss notification" className="text-[var(--text-muted)] hover:text-white"><X size={15} /></button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Desktop Sidebar */}
       <motion.aside
         animate={{ width: collapsed ? 64 : 240 }}
