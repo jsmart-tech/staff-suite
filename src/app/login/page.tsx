@@ -33,6 +33,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading]       = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [showReset, setShowReset] = useState(false);
   const [error, setError]           = useState('');
   const [mode, setMode]             = useState<'login' | 'signup'>('login');
   const [selectedRole, setSelectedRole] = useState<'admin' | 'accountant' | 'employee'>('employee');
@@ -53,6 +54,10 @@ export default function LoginPage() {
   /* ── Auth handler — untouched ── */
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (showReset) {
+      await handlePasswordReset();
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -416,7 +421,7 @@ export default function LoginPage() {
             </div>
 
             {/* Password */}
-            <div>
+            {!showReset && <div>
               <label
                 className="block text-[13px] font-medium mb-2"
                 style={{ color: 'var(--text-secondary)' }}
@@ -448,13 +453,13 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
-            </div>
+            </div>}
 
-            {mode === 'login' && (
+            {mode === 'login' && !showReset && (
               <div className="flex justify-end -mt-2">
                 <button
                   type="button"
-                  onClick={handlePasswordReset}
+                  onClick={() => { setShowReset(true); setError(''); }}
                   disabled={resetLoading}
                   className="text-xs font-semibold transition-opacity hover:opacity-75 disabled:opacity-50"
                   style={{ color: 'var(--accent-violet)' }}
@@ -462,6 +467,17 @@ export default function LoginPage() {
                   {resetLoading ? 'Sending reset link…' : 'Forgot password?'}
                 </button>
               </div>
+            )}
+
+            {showReset && (
+              <button
+                type="button"
+                onClick={() => { setShowReset(false); setError(''); }}
+                className="-mt-2 text-left text-xs font-semibold transition-opacity hover:opacity-75"
+                style={{ color: 'var(--accent-violet)' }}
+              >
+                ← Back to sign in
+              </button>
             )}
 
             {/* Error / success message */}
@@ -492,7 +508,9 @@ export default function LoginPage() {
               className="btn-primary w-full h-11 text-[14px] font-semibold mt-1"
             >
               {loading && <Loader2 size={16} className="animate-spin" />}
-              {loading ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account'}
+              {showReset
+                ? (resetLoading ? 'Sending reset link…' : 'Send reset link')
+                : (loading ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account')}
             </button>
           </form>
 
