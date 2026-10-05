@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+// Invitations must always use the public production domain. Deployment-specific
+// Vercel URLs can be protected and would send new employees to Vercel login.
+const SITE = process.env.VERCEL
+  ? 'https://staff-suite.vercel.app'
+  : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 const REDIRECT = `${SITE}/auth/callback?type=invite`;
 const STAFF_ROLES = new Set(['admin', 'accountant', 'employee']);
 
