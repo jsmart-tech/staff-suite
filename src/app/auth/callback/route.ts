@@ -6,8 +6,8 @@ import { createClient } from '@/lib/supabase/server';
  *
  * Handles two Supabase auth redirect shapes:
  *
- * 1. PKCE flow  → ?token_hash=...&type=...
- *    Server can exchange this directly.
+ * 1. PKCE flow  → ?code=...&type=...
+ *    The server exchanges the one-time code for an auth session.
  *
  * 2. Implicit / OTP flow → ?type=invite (session is in the URL *hash*)
  *    The hash (#access_token=...) is NEVER sent to the server.
@@ -17,11 +17,24 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  const code      = searchParams.get('code');
   const tokenHash = searchParams.get('token_hash');
   const type      = searchParams.get('type');
   const next      = searchParams.get('next') ?? '/dashboard';
 
-  /* ── PKCE flow: token is in the query string ── */
+  /* ── PKCE flow: exchange the one-time code for a session ── */
+  if (code) {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) return NextResponse.redirect(new URL('/login?error=invalid_token', req.url));
+
+    const dest = (type === 'invite' || type === 'recovery')
+      ? '/accept-invite'
+      : next;
+    return NextResponse.redirect(new URL(dest, req.url));
+  }
+
+  /* ── Token-hash flow: verify the token directly ── */
   if (tokenHash && type) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({
