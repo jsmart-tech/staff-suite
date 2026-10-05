@@ -1,3 +1,0 @@
-{
-  "crons": [{ "path": "/api/cron/chat-email-reminders", "schedule": "*/5 * * * *" }]
-}
