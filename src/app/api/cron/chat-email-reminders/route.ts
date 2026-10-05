@@ -8,7 +8,10 @@ export async function GET(request: NextRequest) {
   const secret = process.env.CHAT_REMINDER_CRON_SECRET || process.env.CRON_SECRET;
   const providedSecret = request.headers.get('x-cron-secret')
     || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-  if (!secret || providedSecret !== secret) {
+  if (!secret) {
+    return NextResponse.json({ error: 'Reminder scheduler is not configured.' }, { status: 503 });
+  }
+  if (providedSecret !== secret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
