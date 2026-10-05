@@ -6,7 +6,7 @@ export async function scheduleChatReminder(notificationId: string) {
     return { error: 'QStash scheduling is not configured.' };
   }
 
-  const callbackUrl = `${site}/api/qstash/chat-email-reminders`;
+  const callbackUrl = `${site.replace(/\/$/, '')}/api/qstash/chat-email-reminders`;
   const response = await fetch(`https://qstash.upstash.io/v2/publish/${callbackUrl}`, {
     method: 'POST',
     headers: {
