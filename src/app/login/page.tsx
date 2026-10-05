@@ -92,7 +92,7 @@ export default function LoginPage() {
     setError('');
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/auth/callback?next=/accept-invite`,
+        redirectTo: `${(process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(/\/$/, '')}/auth/callback?next=/accept-invite`,
       });
       if (error) throw error;
       setError('✓ If an account exists for this email, a password reset link has been sent.');

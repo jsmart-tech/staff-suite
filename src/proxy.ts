@@ -2,6 +2,19 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type SetAllCookies } from '@supabase/ssr';
 
 export async function proxy(request: NextRequest) {
+  const canonicalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
+  if (canonicalSiteUrl) {
+    const canonicalUrl = new URL(canonicalSiteUrl);
+    if (request.nextUrl.hostname !== canonicalUrl.hostname
+      && request.nextUrl.hostname.endsWith('.vercel.app')) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.protocol = canonicalUrl.protocol;
+      redirectUrl.hostname = canonicalUrl.hostname;
+      redirectUrl.port = canonicalUrl.port;
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
