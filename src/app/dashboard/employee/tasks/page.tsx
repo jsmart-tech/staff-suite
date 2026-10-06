@@ -210,7 +210,7 @@ export default function EmployeeTasksPage() {
 
   const totalHoursToday = tasks
     .filter(t => t.date_worked === new Date().toISOString().split('T')[0])
-    .reduce((s, t) => s + t.hours_spent, 0);
+    .reduce((s, t) => s + t.hours_spent + ((t.is_timer_running ? liveTimers[t.id] || 0 : 0) / 3600), 0);
 
   return (
     <div>
@@ -218,7 +218,7 @@ export default function EmployeeTasksPage() {
         <div>
           <h1 className="page-title">My Tasks</h1>
           <p className="page-subtitle">
-            Track your work · <span style={{ color: 'var(--accent-sky)' }}>{totalHoursToday.toFixed(2)}h</span> logged today
+            Track your work · <span style={{ color: 'var(--accent-sky)' }}>{formatTimer(Math.floor(totalHoursToday * 3600))}</span> logged today
           </p>
         </div>
         <button
