@@ -90,7 +90,7 @@ export default function ChatPage() {
   }, [active, conversationId, markAsRead, scrollToBottom]);
 
   const send = async () => {
-    if (!content.trim() || sending) return;
+    if (!content.trim()) return;
     const messageContent = content.trim();
     const optimisticId = `pending-${Date.now()}`;
     const optimistic = {
