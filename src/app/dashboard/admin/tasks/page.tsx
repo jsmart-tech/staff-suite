@@ -43,6 +43,7 @@ export default function AdminTasksPage() {
   const [staff,        setStaff]        = useState<Pick<Profile, 'id' | 'full_name' | 'email' | 'role'>[]>([]);
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState('');
   const [loading,      setLoading]      = useState(true);
   const [showModal,    setShowModal]    = useState(false);
   const [form,         setForm]         = useState<AssignForm>(defaultForm);
@@ -77,6 +78,7 @@ export default function AdminTasksPage() {
   const filtered = useMemo(() => {
     let result = tasks;
     if (statusFilter !== 'all') result = result.filter(t => t.status === statusFilter);
+    if (dateFilter) result = result.filter(t => t.date_worked === dateFilter || t.start_date === dateFilter || t.due_date === dateFilter);
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(t =>
@@ -165,6 +167,14 @@ export default function AdminTasksPage() {
             className="input-field pl-8 py-2 text-sm"
             style={{ width: '220px' }}
           />
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={e => setDateFilter(e.target.value)}
+            aria-label="Filter tasks by date"
+            className="input-field py-2 text-sm"
+          />
+          {dateFilter && <button type="button" onClick={() => setDateFilter('')} className="btn-secondary px-3 text-sm">Clear date</button>}
         </div>
       </div>
 
