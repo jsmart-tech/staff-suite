@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { Settings, Bell, Shield, Database, Palette, Save, Loader2, CheckCircle } from 'lucide-react';
+import { Settings, Shield, Database, Save, Loader2, CheckCircle } from 'lucide-react';
 
 interface AppSettings {
   company_name: string;
@@ -28,14 +28,39 @@ export default function AdminSettingsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saveError, setSaveError] = useState('');
+  const supabase = createClient();
+
+  // Load existing settings from the database on mount
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase
+        .from('app_settings')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+      if (data) {
+        setSettings((prev) => ({ ...prev, ...data }));
+      }
+      setLoading(false);
+    };
+    void load();
+  }, [supabase]);
 
   const handleSave = async () => {
     setSaving(true);
-    // In production, persist to a settings table in Supabase
-    await new Promise(r => setTimeout(r, 800));
+    setSaveError('');
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert({ id: 1, ...settings }, { onConflict: 'id' });
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    if (error) {
+      setSaveError(error.message);
+    } else {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    }
   };
 
   const sections = [
@@ -193,7 +218,18 @@ export default function AdminSettingsPage() {
           </motion.div>
         )}
 
-        <button onClick={handleSave} disabled={saving} className="btn-primary w-full">
+        {saveError && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 p-3 rounded-xl text-sm"
+            style={{ background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.3)', color: '#f43f5e' }}
+          >
+            {saveError}
+          </motion.div>
+        )}
+
+        <button onClick={handleSave} disabled={saving || loading} className="btn-primary w-full">
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
           {saving ? 'Saving...' : 'Save Settings'}
         </button>

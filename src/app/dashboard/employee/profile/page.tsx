@@ -16,6 +16,7 @@ export default function EmployeeProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const supabase = createClient();
 
   useEffect(() => {
@@ -50,15 +51,28 @@ export default function EmployeeProfilePage() {
     const file = e.target.files?.[0];
     if (!file || !profile) return;
     setUploading(true);
-    const ext = file.name.split('.').pop();
-    const path = `avatars/${profile.id}.${ext}`;
-    const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-    if (!error) {
+    setUploadError('');
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `${profile.id}/avatar.${ext}`;
+    const { error } = await supabase.storage.from('avatars').upload(path, file, {
+      upsert: true,
+      contentType: file.type,
+      cacheControl: '3600',
+    });
+    if (error) {
+      setUploadError(error.message);
+    } else {
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
-      await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', profile.id);
-      setProfile({ ...profile, avatar_url: publicUrl });
+      const avatarUrl = `${publicUrl}?v=${Date.now()}`;
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: avatarUrl })
+        .eq('id', profile.id);
+      if (profileError) setUploadError(profileError.message);
+      else setProfile({ ...profile, avatar_url: avatarUrl });
     }
     setUploading(false);
+    e.target.value = '';
   };
 
   if (loading) {
@@ -92,6 +106,7 @@ export default function EmployeeProfilePage() {
               {uploading ? <Loader2 size={12} className="animate-spin text-white" /> : <Camera size={12} className="text-white" />}
               <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
             </label>
+            {uploadError && <p className="mt-2 max-w-xs text-xs" style={{ color: '#f43f5e' }}>{uploadError}</p>}
           </div>
           <div>
             <h2 className="text-xl font-bold mb-1">{profile?.full_name || 'Unnamed User'}</h2>

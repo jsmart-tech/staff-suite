@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { sendNotificationEmails } from '@/lib/email';
+import { sendNotificationEmails, getSiteUrl } from '@/lib/email';
 
 export const runtime = 'nodejs';
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!reminders?.length) return NextResponse.json({ processed: 0 });
 
-  const site = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  const site = getSiteUrl();
   const result = await sendNotificationEmails(reminders.map((reminder) => ({
     to: reminder.recipient_email,
     subject: reminder.message_type === 'direct'

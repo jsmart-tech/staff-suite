@@ -7,7 +7,7 @@ import { Profile, UserRole } from '@/types';
 import { getInitials, getRoleBadgeColor, formatCurrency } from '@/lib/utils';
 import {
   Search, Plus, Edit2, X, Loader2, Users,
-  Mail, Phone, Building, DollarSign, UserCog, Send, Trash2,
+  Mail, Phone, Building, DollarSign, UserCog, Send, Trash2, Camera,
 } from 'lucide-react';
 
 const DEPARTMENTS = ['Engineering', 'Design', 'Marketing', 'Finance', 'Operations', 'HR', 'Sales', 'Legal'];
@@ -37,6 +37,7 @@ export default function AdminStaffPage() {
   const [inviteError, setInviteError] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const supabase = createClient();
 
@@ -82,6 +83,37 @@ export default function AdminStaffPage() {
       setTimeout(() => setSuccess(''), 3000);
     }
     setSaving(false);
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !editingProfile) return;
+    setUploadingAvatar(true);
+    setError('');
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `${editingProfile.id}/avatar.${extension}`;
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, {
+      upsert: true,
+      contentType: file.type,
+      cacheControl: '3600',
+    });
+    if (uploadError) {
+      setError(`Picture upload failed: ${uploadError.message}`);
+    } else {
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+      const avatarUrl = `${publicUrl}?v=${Date.now()}`;
+      const { error: profileError } = await supabase.from('profiles')
+        .update({ avatar_url: avatarUrl }).eq('id', editingProfile.id);
+      if (profileError) setError(`Picture save failed: ${profileError.message}`);
+      else {
+        setEditingProfile({ ...editingProfile, avatar_url: avatarUrl });
+        setStaff(current => current.map(member => member.id === editingProfile.id
+          ? { ...member, avatar_url: avatarUrl } : member));
+        setSuccess('Profile picture updated.');
+      }
+    }
+    setUploadingAvatar(false);
+    event.target.value = '';
   };
 
   const handleInvite = async () => {
@@ -227,9 +259,9 @@ export default function AdminStaffPage() {
                     <tr key={s.id}>
                       <td>
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 overflow-hidden"
                             style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white' }}>
-                            {getInitials(s.full_name)}
+                            {s.avatar_url ? <img src={s.avatar_url} alt="" className="w-full h-full object-cover" /> : getInitials(s.full_name)}
                           </div>
                           <div>
                             <p className="font-medium text-sm">{s.full_name || 'Unnamed'}</p>
@@ -307,9 +339,13 @@ export default function AdminStaffPage() {
           >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
+                <div className="relative w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold overflow-hidden"
                   style={{ background: 'linear-gradient(135deg, #7c5bf6, #5b3fd4)', color: 'white' }}>
-                  {getInitials(editingProfile.full_name)}
+                  {editingProfile.avatar_url ? <img src={editingProfile.avatar_url} alt="" className="w-full h-full object-cover" /> : getInitials(editingProfile.full_name)}
+                  <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 hover:opacity-100">
+                    {uploadingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+                  </label>
                 </div>
                 <div>
                   <h3 className="font-semibold">Edit Profile</h3>

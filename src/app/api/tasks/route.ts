@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { sendNotificationEmail } from '@/lib/email';
+import { getSiteUrl, sendNotificationEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,13 +27,14 @@ export async function POST(request: NextRequest) {
     }).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    const site = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const site = getSiteUrl();
     const email = await sendNotificationEmail({
       to: assignee.email,
       subject: `New task assigned: ${title.trim()}`,
       heading: 'You have a new task',
       body: `${caller.full_name || 'An administrator'} assigned you: ${title.trim()}${description?.trim() ? `\n\n${description.trim()}` : ''}`,
-      actionUrl: `${site}/dashboard/employee/tasks`, actionLabel: 'View task',
+      actionUrl: `${site}/dashboard/employee/tasks`,
+      actionLabel: 'View task',
     });
 
     return NextResponse.json({ task, emailSent: email.sent, emailError: email.error });

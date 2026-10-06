@@ -7,7 +7,7 @@ import { Task, TaskStatus } from '@/types';
 import { getStatusColor } from '@/lib/utils';
 import {
   Plus, Play, Square, CheckCircle, Clock, AlertCircle,
-  Trash2, Edit2, X, Loader2, Filter, Calendar,
+  Trash2, Edit2, X, Loader2, Calendar,
 } from 'lucide-react';
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
@@ -109,13 +109,21 @@ export default function EmployeeTasksPage() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
 
+  const patchTask = async (taskId: string, patch: Record<string, unknown>) => {
+    await fetch(`/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+  };
+
   const handleStartTimer = async (task: Task) => {
     const now = new Date().toISOString();
-    await supabase.from('tasks').update({
+    await patchTask(task.id, {
       is_timer_running: true,
       timer_start_time: now,
       status: 'in_progress',
-    }).eq('id', task.id);
+    });
     fetchTasks();
   };
 
@@ -123,11 +131,11 @@ export default function EmployeeTasksPage() {
     if (!task.timer_start_time) return;
     const elapsed = hoursSince(task.timer_start_time);
     const newHours = parseFloat((task.hours_spent + elapsed).toFixed(4));
-    await supabase.from('tasks').update({
+    await patchTask(task.id, {
       is_timer_running: false,
       timer_start_time: null,
       hours_spent: newHours,
-    }).eq('id', task.id);
+    });
     fetchTasks();
   };
 
@@ -135,14 +143,19 @@ export default function EmployeeTasksPage() {
     if (!form.title.trim()) return;
     setSaving(true);
     if (editId) {
-      await supabase.from('tasks').update({
-        title: form.title,
-        description: form.description,
-        status: form.status,
-        hours_spent: form.hours_spent,
-        date_worked: form.date_worked,
-      }).eq('id', editId);
+      await fetch(`/api/tasks/${editId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description,
+          status: form.status,
+          hours_spent: form.hours_spent,
+          date_worked: form.date_worked,
+        }),
+      });
     } else {
+      // Self-created tasks go directly to Supabase (employee creating their own work log)
       await supabase.from('tasks').insert({
         user_id: userId,
         title: form.title,
@@ -172,7 +185,7 @@ export default function EmployeeTasksPage() {
   };
 
   const handleDelete = async (id: string) => {
-    await supabase.from('tasks').delete().eq('id', id);
+    await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
     setDeleteId(null);
     fetchTasks();
   };
