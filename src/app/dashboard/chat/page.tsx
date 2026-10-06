@@ -22,6 +22,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [unreadScopes, setUnreadScopes] = useState<string[]>([]);
+  const [unreadDirectIds, setUnreadDirectIds] = useState<string[]>([]);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollToBottom = useCallback(() => endRef.current?.scrollIntoView(), []);
@@ -33,7 +34,11 @@ export default function ChatPage() {
   const selectChat = (next: ActiveChat) => { setActive(next); setMobileChatOpen(true); };
   const loadUnread = useCallback(async () => {
     const response = await fetch('/api/chat/unread');
-    if (response.ok) setUnreadScopes((await response.json()).scopes || []);
+    if (response.ok) {
+      const result = await response.json();
+      setUnreadScopes(result.scopes || []);
+      setUnreadDirectIds(result.directUserIds || []);
+    }
   }, []);
 
   useEffect(() => {
@@ -82,6 +87,7 @@ export default function ChatPage() {
         const { data } = await supabase.from('direct_messages').select('*, profiles(full_name, avatar_url, role)').eq('conversation_id', conversation.id).order('created_at').limit(100);
         setMessages((data || []) as Message[]);
         if (reset) markAsRead('direct', conversation.id);
+        if (reset) setUnreadDirectIds(current => current.filter(id => id !== active.id));
       }
       window.setTimeout(scrollToBottom, 50);
     };
@@ -150,5 +156,5 @@ export default function ChatPage() {
     <footer className="border-t border-[var(--border)] p-3 sm:p-4">{error && <p className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>}<div className="flex items-end gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] p-2"><textarea value={content} onChange={event => setContent(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={active.kind === 'channel' ? `Message #${active.label}` : `Message ${active.label}`} rows={1} className="min-h-10 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none"/><button onClick={() => void send()} disabled={!content.trim() || sending} aria-label="Send message" className="rounded-xl bg-[var(--accent-violet)] p-3 text-white disabled:opacity-50"><Send size={16} /></button></div><p className="mt-1.5 px-2 text-[11px] text-[var(--text-muted)]">Enter to send · Shift + Enter for a new line</p></footer>
   </main>;
 
-  return <div className="min-h-[620px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] md:flex"><aside className={`${mobileChatOpen ? 'hidden' : 'block'} min-h-[620px] w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:block md:w-60`}><div className="border-b border-[var(--border)] p-5"><h1 className="font-bold">Team Chat</h1><p className="mt-1 text-xs text-[var(--text-muted)]">Choose a channel or direct message</p></div><div className="p-3"><p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Channels</p>{CHANNELS.map(channel => <button key={channel} onClick={() => selectChat({ kind: 'channel', id: channel, label: channel })} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm ${active.kind === 'channel' && active.id === channel ? 'bg-[rgba(124,91,246,0.18)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}><Hash size={15} />{channel}{unreadScopes.includes(`channel:${channel}`) && <span className="ml-auto badge px-1.5 py-0 text-[9px]">NEW</span>}</button>)}</div><div className="border-t border-[var(--border)] p-3"><p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Direct messages</p>{contacts.map(contact => <button key={contact.id} onClick={() => selectChat({ kind: 'direct', id: contact.id, label: contact.full_name || contact.email })} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm ${active.kind === 'direct' && active.id === contact.id ? 'bg-[rgba(124,91,246,0.18)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}><span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--accent-sky)] text-[10px] font-bold text-white">{contact.avatar_url ? <img src={contact.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(contact.full_name)}</span><span className="truncate">{contact.full_name || contact.email}</span></button>)}</div></aside>{conversation}</div>;
+  return <div className="min-h-[620px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] md:flex"><aside className={`${mobileChatOpen ? 'hidden' : 'block'} min-h-[620px] w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:block md:w-60`}><div className="border-b border-[var(--border)] p-5"><h1 className="font-bold">Team Chat</h1><p className="mt-1 text-xs text-[var(--text-muted)]">Choose a channel or direct message</p></div><div className="p-3"><p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Channels</p>{CHANNELS.map(channel => <button key={channel} onClick={() => selectChat({ kind: 'channel', id: channel, label: channel })} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm ${active.kind === 'channel' && active.id === channel ? 'bg-[rgba(124,91,246,0.18)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}><Hash size={15} />{channel}{unreadScopes.includes(`channel:${channel}`) && <span className="ml-auto badge px-1.5 py-0 text-[9px]">NEW</span>}</button>)}</div><div className="border-t border-[var(--border)] p-3"><p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Direct messages</p>{contacts.map(contact => <button key={contact.id} onClick={() => selectChat({ kind: 'direct', id: contact.id, label: contact.full_name || contact.email })} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm ${active.kind === 'direct' && active.id === contact.id ? 'bg-[rgba(124,91,246,0.18)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}><span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--accent-sky)] text-[10px] font-bold text-white">{contact.avatar_url ? <img src={contact.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(contact.full_name)}</span><span className="truncate">{contact.full_name || contact.email}</span>{unreadDirectIds.includes(contact.id) && <span className="ml-auto badge px-1.5 py-0 text-[9px]">NEW</span>}</button>)}</div></aside>{conversation}</div>;
 }
