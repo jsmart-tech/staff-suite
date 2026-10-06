@@ -34,7 +34,7 @@ const navItems: NavItem[] = [
   { href: '/dashboard/accountant/hours', label: 'Hours Report', icon: Clock, roles: ['accountant'] },
   // Employee
   { href: '/dashboard/employee/tasks', label: 'My Tasks', icon: CheckSquare, roles: ['employee'] },
-  { href: '/dashboard/employee/profile', label: 'My Profile', icon: User, roles: ['employee'] },
+  { href: '/dashboard/employee/profile', label: 'My Profile', icon: User, roles: ['admin', 'accountant', 'employee'] },
   // Shared
   { href: '/dashboard/chat', label: 'Team Chat', icon: MessageSquare, roles: ['admin', 'accountant', 'employee'] },
 ];
