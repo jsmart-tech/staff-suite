@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   Mail, Lock, Eye, EyeOff, Loader2, Zap,
@@ -184,12 +185,7 @@ export default function LoginPage() {
 
           {/* ── Logo ── */}
           <div className="flex items-center gap-3 flex-shrink-0">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #7c5bf6, #5b3fd4)' }}
-            >
-              <Zap size={20} className="text-white" />
-            </div>
+            <Image src="/babysitting-buddies-logo.png" alt="Babysitting Buddies" width={180} height={120} className="h-16 w-28 object-contain object-left flex-shrink-0" priority />
             <div className="flex flex-col leading-tight">
               <span
                 className="text-[1.1rem] font-bold"

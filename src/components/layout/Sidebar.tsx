@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, CheckSquare, FileText, Settings,
-  MessageSquare, DollarSign, Clock, LogOut, Menu, X, Zap, Bell,
+  MessageSquare, DollarSign, Clock, LogOut, Menu, X, Bell,
   ChevronRight, User,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -124,10 +125,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className={cn('flex items-center gap-3 px-4 py-5 border-b', 'border-[var(--border)]')}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #7c5bf6, #5b3fd4)' }}>
-          <Zap size={18} className="text-white" />
-        </div>
+        <Image src="/babysitting-buddies-logo.png" alt="Babysitting Buddies" width={144} height={96} className="h-12 w-20 object-contain object-left flex-shrink-0" priority />
         <AnimatePresence>
           {!collapsed && (
             <motion.div
@@ -225,7 +223,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
         <div className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1',
           'bg-[var(--bg-hover)]')}>
           <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-            style={{ background: 'linear-gradient(135deg, #7c5bf6, #5b3fd4)', color: 'white' }}>
+            style={{ background: 'linear-gradient(135deg, #f1958d, #aff0e2)', color: '#333333' }}>
             {getInitials(profile.full_name)}
           </div>
           <AnimatePresence>
