@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { recipientId, content } = await request.json();
+    const { recipientId, content, attachmentUrl, attachmentName } = await request.json();
     if (!recipientId || recipientId === user.id || typeof content !== 'string' || !content.trim()) return NextResponse.json({ error: 'Choose another staff member and enter a message.' }, { status: 400 });
     if (content.trim().length > 5000) return NextResponse.json({ error: 'Messages are limited to 5,000 characters.' }, { status: 400 });
 
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: message, error } = await admin.from('direct_messages').insert({
-      conversation_id: conversation.id, sender_id: user.id, content: content.trim(),
+      conversation_id: conversation.id, sender_id: user.id, content: content.trim(), attachment_url: attachmentUrl || null, attachment_name: attachmentName || null,
     }).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
