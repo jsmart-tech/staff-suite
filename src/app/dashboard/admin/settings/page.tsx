@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { Settings, Shield, Database, Save, Loader2, CheckCircle } from 'lucide-react';
+import { Settings, Shield, Database, Save, Loader2, CheckCircle, Camera } from 'lucide-react';
 
 interface AppSettings {
   company_name: string;
+  company_logo_url?: string | null;
   timezone: string;
   work_hours_per_day: number;
   currency: string;
@@ -30,6 +31,7 @@ export default function AdminSettingsPage() {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const supabase = createClient();
 
   // Load existing settings from the database on mount
@@ -63,6 +65,26 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    setSaveError('');
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
+    const path = `company-logo.${extension}`;
+    const { error: uploadError } = await supabase.storage.from('company-assets').upload(path, file, {
+      upsert: true, contentType: file.type, cacheControl: '3600',
+    });
+    if (uploadError) {
+      setSaveError(uploadError.message);
+    } else {
+      const { data: { publicUrl } } = supabase.storage.from('company-assets').getPublicUrl(path);
+      setSettings(current => ({ ...current, company_logo_url: `${publicUrl}?v=${Date.now()}` }));
+    }
+    setUploadingLogo(false);
+    event.target.value = '';
+  };
+
   const sections = [
     {
       icon: Settings,
@@ -70,6 +92,19 @@ export default function AdminSettingsPage() {
       color: 'violet',
       fields: (
         <div className="space-y-4">
+          <div className="flex items-center gap-4 rounded-xl p-3" style={{ background: 'var(--bg-hover)' }}>
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-[var(--bg-card)]">
+              {settings.company_logo_url ? <img src={settings.company_logo_url} alt="Company logo" className="h-full w-full object-contain" /> : <Settings size={24} style={{ color: 'var(--text-muted)' }} />}
+            </div>
+            <div>
+              <p className="text-sm font-medium">Company Logo</p>
+              <label className="mt-1 inline-flex cursor-pointer items-center gap-2 text-xs" style={{ color: 'var(--accent-violet)' }}>
+                {uploadingLogo ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+                Upload logo
+                <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploadingLogo} />
+              </label>
+            </div>
+          </div>
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Company Name</label>
             <input
