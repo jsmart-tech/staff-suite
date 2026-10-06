@@ -27,6 +27,7 @@ const navItems: NavItem[] = [
   // Admin
   { href: '/dashboard/admin/staff', label: 'Staff', icon: Users, roles: ['admin'] },
   { href: '/dashboard/admin/tasks', label: 'All Tasks', icon: CheckSquare, roles: ['admin'] },
+  { href: '/dashboard/employee/tasks', label: 'My Tasks', icon: CheckSquare, roles: ['admin'] },
   { href: '/dashboard/admin/logs', label: 'Audit Logs', icon: FileText, roles: ['admin'] },
   { href: '/dashboard/admin/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
   // Accountant
