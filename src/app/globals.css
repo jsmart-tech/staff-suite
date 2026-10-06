@@ -4,21 +4,21 @@
    STAFFSUITE DESIGN TOKENS
    ===================================================== */
 :root {
-  --bg-primary:    #0a0b0f;
-  --bg-secondary:  #111218;
-  --bg-card:       #16181f;
-  --bg-hover:      #1e2028;
-  --border:        #2a2d3a;
-  --border-bright: #3a3d4a;
-  --text-primary:  #f0f2f8;
-  --text-secondary:#8b90a8;
-  --text-muted:    #555870;
+  --bg-primary:    #333333;
+  --bg-secondary:  #292929;
+  --bg-card:       #3b3b3b;
+  --bg-hover:      #454545;
+  --border:        #555555;
+  --border-bright: #707070;
+  --text-primary:  #ffffff;
+  --text-secondary:#fff2ca;
+  --text-muted:    #c8c0a8;
 
-  --accent-violet:     #7c5bf6;
-  --accent-emerald:    #10d98a;
-  --accent-sky:        #38bdf8;
-  --accent-amber:      #f59e0b;
-  --accent-rose:       #f43f5e;
+  --accent-violet:     #f1958d;
+  --accent-emerald:    #aff0e2;
+  --accent-sky:        #aff0e2;
+  --accent-amber:      #fff2ca;
+  --accent-rose:       #f1958d;
 
   --section-gap: 32px;
   --space-6: 24px;
@@ -47,8 +47,8 @@ body {
    ===================================================== */
 ::-webkit-scrollbar        { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track  { background: transparent; }
-::-webkit-scrollbar-thumb  { background: #3a3d4a; border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: #555870; }
+::-webkit-scrollbar-thumb  { background: var(--border-bright); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 /* =====================================================
    ANIMATED BACKGROUND
@@ -57,9 +57,9 @@ body {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 80% at 20% 10%, rgba(124, 91, 246, 0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 60% at 80% 90%, rgba(16, 217, 138, 0.04) 0%, transparent 60%),
-    #0a0b0f;
+    radial-gradient(ellipse 80% 80% at 20% 10%, rgba(241, 149, 141, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 60% at 80% 90%, rgba(175, 240, 226, 0.08) 0%, transparent 60%),
+    #333333;
   pointer-events: none;
   z-index: 0;
 }
@@ -85,7 +85,7 @@ body {
    GRADIENT TEXT
    ===================================================== */
 .gradient-text {
-  background: linear-gradient(135deg, #7c5bf6, #38bdf8);
+  background: linear-gradient(135deg, #f1958d, #aff0e2);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -133,7 +133,7 @@ body {
   transform: translateY(-50%);
   height: 60%;
   width: 3px;
-  background: #7c5bf6;
+  background: #f1958d;
   border-radius: 0 4px 4px 0;
 }
 
@@ -231,11 +231,11 @@ body {
   border-radius: 2px 2px 0 0;
 }
 
-.stat-card.violet::before  { background: linear-gradient(90deg, #7c5bf6, transparent); }
-.stat-card.emerald::before { background: linear-gradient(90deg, #10d98a, transparent); }
-.stat-card.sky::before     { background: linear-gradient(90deg, #38bdf8, transparent); }
-.stat-card.amber::before   { background: linear-gradient(90deg, #f59e0b, transparent); }
-.stat-card.rose::before    { background: linear-gradient(90deg, #f43f5e, transparent); }
+.stat-card.violet::before  { background: linear-gradient(90deg, #f1958d, transparent); }
+.stat-card.emerald::before { background: linear-gradient(90deg, #aff0e2, transparent); }
+.stat-card.sky::before     { background: linear-gradient(90deg, #aff0e2, transparent); }
+.stat-card.amber::before   { background: linear-gradient(90deg, #fff2ca, transparent); }
+.stat-card.rose::before    { background: linear-gradient(90deg, #f1958d, transparent); }
 
 /* =====================================================
    FORM INPUTS
@@ -257,11 +257,11 @@ body {
 }
 
 .input-field:focus {
-  border-color: #7c5bf6;
+  border-color: #f1958d;
   box-shadow: 0 0 0 3px rgba(124, 91, 246, 0.12);
 }
 
-.input-field::placeholder { color: #555870; font-size: 13px; }
+.input-field::placeholder { color: var(--text-muted); font-size: 13px; }
 .input-with-icon { padding-left: 44px !important; }
 .input-with-icon-right { padding-right: 48px !important; }
 select.input-field { cursor: pointer; padding-right: 36px; }
@@ -278,7 +278,7 @@ textarea.input-field { height: auto; min-height: 100px; resize: vertical; }
   gap: 8px;
   height: 40px;
   padding: 0 20px;
-  background: linear-gradient(135deg, #7c5bf6, #5b3fd4);
+  background: linear-gradient(135deg, #f1958d, #d97870);
   color: white;
   border: none;
   border-radius: 12px;
