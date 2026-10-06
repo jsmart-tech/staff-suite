@@ -69,9 +69,9 @@ export function EmployeeDashboard({ profile }: { profile: Profile }) {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="page-header">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold flex-shrink-0"
+          <div className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden font-bold flex-shrink-0"
             style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white', fontSize: '16px' }}>
-            {getInitials(profile.full_name)}
+            {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(profile.full_name)}
           </div>
           <div>
             <h1 className="page-title">
