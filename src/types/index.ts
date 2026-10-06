@@ -31,6 +31,8 @@ export interface Task {
   status: TaskStatus;
   hours_spent: number;
   date_worked: string;
+  start_date: string;
+  due_date: string | null;
   is_timer_running: boolean;
   timer_start_time: string | null;
   created_at: string;

@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     if (caller?.role !== 'admin') return NextResponse.json({ error: 'Only admins can assign tasks.' }, { status: 403 });
 
     const payload = await request.json();
-    const { user_id, title, description, status, hours_spent, date_worked } = payload;
+    const { user_id, title, description, status, hours_spent, date_worked, start_date, due_date } = payload;
     if (!user_id || !title?.trim()) return NextResponse.json({ error: 'Assignee and task title are required.' }, { status: 400 });
 
     const admin = createAdminClient();
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     const { data: task, error } = await admin.from('tasks').insert({
       user_id, title: title.trim(), description: description?.trim() || null,
       status: status || 'in_progress', hours_spent: Number(hours_spent) || 0,
-      date_worked, is_timer_running: false,
+      date_worked, start_date: start_date || date_worked, due_date: due_date || null, is_timer_running: false,
     }).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 

@@ -8,7 +8,7 @@ import { getRoleBadgeColor, getInitials } from '@/lib/utils';
 import { Shield, Clock, Search, RefreshCw } from 'lucide-react';
 
 export default function AdminLogsPage() {
-  const [logs, setLogs] = useState<(LoginLog & { profiles: Pick<Profile, 'full_name' | 'email' | 'role'> })[]>([]);
+  const [logs, setLogs] = useState<(LoginLog & { profiles: Pick<Profile, 'full_name' | 'email' | 'role' | 'avatar_url'> })[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -18,7 +18,7 @@ export default function AdminLogsPage() {
     setRefreshing(true);
     const { data } = await supabase
       .from('login_logs')
-      .select('*, profiles(full_name, email, role)')
+      .select('*, profiles(full_name, email, role, avatar_url)')
       .order('login_time', { ascending: false })
       .limit(200);
     setLogs(data as typeof logs || []);
@@ -122,9 +122,9 @@ export default function AdminLogsPage() {
                       </td>
                       <td>
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold"
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden text-[10px] font-bold"
                             style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white' }}>
-                            {getInitials(log.profiles?.full_name)}
+                            {log.profiles?.avatar_url ? <img src={log.profiles.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(log.profiles?.full_name)}
                           </div>
                           <div>
                             <p className="text-sm font-medium">{log.profiles?.full_name || 'Unknown'}</p>

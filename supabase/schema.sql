@@ -37,10 +37,15 @@ CREATE TABLE tasks (
   status text CHECK (status IN ('in_progress', 'completed', 'blocked')) DEFAULT 'in_progress',
   hours_spent numeric(6, 2) DEFAULT 0.00,
   date_worked date DEFAULT CURRENT_DATE,
+  start_date date DEFAULT CURRENT_DATE,
+  due_date date,
   is_timer_running boolean DEFAULT false,
   timer_start_time timestamp with time zone,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
+
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date date DEFAULT CURRENT_DATE;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date date;
 
 -- 5. Realtime chat messages
 CREATE TABLE chat_messages (

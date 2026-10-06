@@ -23,6 +23,8 @@ interface AssignForm {
   status: TaskStatus;
   hours_spent: number;
   date_worked: string;
+  start_date: string;
+  due_date: string;
 }
 
 const defaultForm: AssignForm = {
@@ -32,6 +34,8 @@ const defaultForm: AssignForm = {
   status: 'in_progress',
   hours_spent: 0,
   date_worked: new Date().toISOString().split('T')[0],
+  start_date: new Date().toISOString().split('T')[0],
+  due_date: '',
 };
 
 export default function AdminTasksPage() {
@@ -62,7 +66,7 @@ export default function AdminTasksPage() {
       void supabase
         .from('profiles')
         .select('id, full_name, email, role')
-        .in('role', ['employee', 'accountant'])
+        .in('role', ['admin', 'employee', 'accountant'])
         .order('full_name')
         .then(({ data }) => setStaff(data || []));
     }, 0);
@@ -227,7 +231,7 @@ export default function AdminTasksPage() {
                         <td>
                           {task.is_timer_running ? (
                             <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--accent-emerald)' }}>
-                              <span className="w-2 h-2 rounded-full timer-pulse" style={{ background: 'var(--accent-emerald)' }} />
+                              <span className="w-2 h-2 rounded-full" style={{ background: 'var(--accent-emerald)' }} />
                               Live
                             </span>
                           ) : (
@@ -370,6 +374,17 @@ export default function AdminTasksPage() {
                       onChange={e => setForm(f => ({ ...f, date_worked: e.target.value }))}
                       className="input-field text-sm"
                     />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[13px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Start Date</label>
+                    <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} className="input-field text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>End Date</label>
+                    <input type="date" min={form.start_date} value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="input-field text-sm" />
                   </div>
                 </div>
 

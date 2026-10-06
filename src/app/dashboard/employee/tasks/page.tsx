@@ -22,6 +22,8 @@ interface TaskForm {
   status: TaskStatus;
   hours_spent: number;
   date_worked: string;
+  start_date: string;
+  due_date: string;
 }
 
 const defaultForm: TaskForm = {
@@ -30,6 +32,8 @@ const defaultForm: TaskForm = {
   status: 'in_progress',
   hours_spent: 0,
   date_worked: new Date().toISOString().split('T')[0],
+  start_date: new Date().toISOString().split('T')[0],
+  due_date: '',
 };
 
 function hoursSince(startTime: string) {
@@ -119,24 +123,24 @@ export default function EmployeeTasksPage() {
 
   const handleStartTimer = async (task: Task) => {
     const now = new Date().toISOString();
-    await patchTask(task.id, {
+    setTasks(current => current.map(item => item.id === task.id ? { ...item, is_timer_running: true, timer_start_time: now, status: 'in_progress' } : item));
+    void patchTask(task.id, {
       is_timer_running: true,
       timer_start_time: now,
       status: 'in_progress',
     });
-    fetchTasks();
   };
 
   const handleStopTimer = async (task: Task) => {
     if (!task.timer_start_time) return;
     const elapsed = hoursSince(task.timer_start_time);
     const newHours = parseFloat((task.hours_spent + elapsed).toFixed(4));
-    await patchTask(task.id, {
+    setTasks(current => current.map(item => item.id === task.id ? { ...item, is_timer_running: false, timer_start_time: null, hours_spent: newHours } : item));
+    void patchTask(task.id, {
       is_timer_running: false,
       timer_start_time: null,
       hours_spent: newHours,
     });
-    fetchTasks();
   };
 
   const handleSave = async () => {
@@ -152,6 +156,8 @@ export default function EmployeeTasksPage() {
           status: form.status,
           hours_spent: form.hours_spent,
           date_worked: form.date_worked,
+          start_date: form.start_date,
+          due_date: form.due_date || null,
         }),
       });
     } else {
@@ -163,6 +169,8 @@ export default function EmployeeTasksPage() {
         status: form.status,
         hours_spent: form.hours_spent,
         date_worked: form.date_worked,
+        start_date: form.start_date,
+        due_date: form.due_date || null,
       });
     }
     setForm(defaultForm);
@@ -178,7 +186,9 @@ export default function EmployeeTasksPage() {
       description: task.description || '',
       status: task.status,
       hours_spent: task.hours_spent,
-      date_worked: task.date_worked,
+        date_worked: task.date_worked,
+        start_date: task.start_date || task.date_worked,
+        due_date: task.due_date || '',
     });
     setEditId(task.id);
     setShowForm(true);
@@ -315,7 +325,7 @@ export default function EmployeeTasksPage() {
                           <div className="flex items-center gap-1.5">
                             <Clock size={12} style={{ color: 'var(--text-muted)' }} />
                             {isRunning ? (
-                              <span className="text-sm font-mono font-bold timer-pulse" style={{ color: 'var(--accent-violet)' }}>
+                              <span className="text-sm font-mono font-bold" style={{ color: 'var(--accent-violet)' }}>
                                 {formatTimer(elapsed + Math.floor(task.hours_spent * 3600))}
                               </span>
                             ) : (
@@ -323,6 +333,9 @@ export default function EmployeeTasksPage() {
                                 {displayHours.toFixed(2)}h
                               </span>
                             )}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                            <Calendar size={12} /> {task.start_date || task.date_worked}{task.due_date ? ` → ${task.due_date}` : ''}
                           </div>
                           {/* Date */}
                           <div className="flex items-center gap-1.5">
@@ -403,6 +416,16 @@ export default function EmployeeTasksPage() {
                     className="input-field"
                     autoFocus
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Start Date</label>
+                    <input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} className="input-field" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>End Date</label>
+                    <input type="date" value={form.due_date} min={form.start_date} onChange={e => setForm({ ...form, due_date: e.target.value })} className="input-field" />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Description (optional)</label>

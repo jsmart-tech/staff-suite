@@ -37,7 +37,7 @@ export async function PATCH(
     const body = await request.json() as Record<string, unknown>;
 
     // Safely whitelist only updatable fields for employees
-    const allowed = ['title', 'description', 'status', 'hours_spent', 'date_worked', 'is_timer_running', 'timer_start_time'];
+    const allowed = ['title', 'description', 'status', 'hours_spent', 'date_worked', 'start_date', 'due_date', 'is_timer_running', 'timer_start_time'];
     const patch: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) patch[key] = body[key];
