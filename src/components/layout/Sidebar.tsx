@@ -222,9 +222,9 @@ export function Sidebar({ profile }: { profile: Profile }) {
       <div className="p-3 border-t border-[var(--border)]">
         <div className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1',
           'bg-[var(--bg-hover)]')}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden text-xs font-bold"
             style={{ background: 'linear-gradient(135deg, #f1958d, #aff0e2)', color: '#333333' }}>
-            {getInitials(profile.full_name)}
+            {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : getInitials(profile.full_name)}
           </div>
           <AnimatePresence>
             {!collapsed && (
