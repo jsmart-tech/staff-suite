@@ -118,11 +118,12 @@ export default function ChatPage() {
   const send = async () => {
     if (!content.trim() && !attachment) return;
     const messageContent = content.trim();
+    const displayedContent = attachment ? `${messageContent}${messageContent ? '\n' : ''}📎 ${attachment.name}: ${attachment.url}` : messageContent;
     const optimisticId = `pending-${Date.now()}`;
     const optimistic = {
       id: optimisticId,
       sender_id: profile?.id || '',
-      content: messageContent || `📎 ${attachment?.name}`,
+      content: displayedContent || `📎 ${attachment?.name}: ${attachment?.url}`,
       created_at: new Date().toISOString(),
       profiles: profile ? { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role } : undefined,
     } as Message;
@@ -131,7 +132,7 @@ export default function ChatPage() {
     window.setTimeout(scrollToBottom, 0);
     setSending(true); setError('');
     const endpoint = active.kind === 'channel' ? '/api/chat/messages' : '/api/direct-messages';
-    const body = active.kind === 'channel' ? { channel: active.id, content: messageContent || `📎 ${attachment?.name}`, attachmentUrl: attachment?.url, attachmentName: attachment?.name } : { recipientId: active.id, content: messageContent || `📎 ${attachment?.name}`, attachmentUrl: attachment?.url, attachmentName: attachment?.name };
+    const body = active.kind === 'channel' ? { channel: active.id, content: displayedContent || `📎 ${attachment?.name}: ${attachment?.url}`, attachmentUrl: attachment?.url, attachmentName: attachment?.name } : { recipientId: active.id, content: displayedContent || `📎 ${attachment?.name}: ${attachment?.url}`, attachmentUrl: attachment?.url, attachmentName: attachment?.name };
     const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const result = await response.json().catch(() => ({}));
     setSending(false);
