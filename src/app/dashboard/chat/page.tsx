@@ -96,7 +96,12 @@ export default function ChatPage() {
     if (active.kind === 'direct' && !conversationId) return;
     const channel = supabase.channel(`chat-${active.kind}-${active.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table, filter }, async payload => {
       const { data } = await supabase.from(table).select('*, profiles(full_name, avatar_url, role)').eq('id', payload.new.id).single();
-      if (data) setMessages(previous => previous.some(message => message.id === data.id) ? previous : [...previous, data as Message]);
+      if (data) setMessages(previous => {
+        if (previous.some(message => message.id === data.id)) return previous;
+        const pendingIndex = previous.findIndex(message => message.id.startsWith('pending-') && message.sender_id === data.sender_id && message.content === data.content);
+        if (pendingIndex === -1) return [...previous, data as Message];
+        return previous.map((message, index) => index === pendingIndex ? data as Message : message);
+      });
       markAsRead(active.kind, active.kind === 'channel' ? active.id : conversationId!);
       window.setTimeout(scrollToBottom, 50);
     }).subscribe();
@@ -134,7 +139,7 @@ export default function ChatPage() {
         ...result.message,
         profiles: profile ? { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role } : undefined,
       } as Message;
-      setMessages(previous => [...previous.filter(message => message.id !== optimisticId), sent]);
+      setMessages(previous => [...previous.filter(message => message.id !== optimisticId && !(message.sender_id === sent.sender_id && message.content === sent.content && message.id !== sent.id)), sent]);
       window.setTimeout(scrollToBottom, 50);
     }
   };
