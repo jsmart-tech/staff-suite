@@ -23,7 +23,7 @@ export default function ChatPage() {
   const [error, setError] = useState('');
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
-  const scrollToBottom = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), []);
+  const scrollToBottom = useCallback(() => endRef.current?.scrollIntoView(), []);
   const markAsRead = useCallback((type: 'channel' | 'direct', id: string) => {
     void fetch('/api/chat/read', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, id }),
@@ -91,23 +91,38 @@ export default function ChatPage() {
 
   const send = async () => {
     if (!content.trim() || sending) return;
+    const messageContent = content.trim();
+    const optimisticId = `pending-${Date.now()}`;
+    const optimistic = {
+      id: optimisticId,
+      sender_id: profile?.id || '',
+      content: messageContent,
+      created_at: new Date().toISOString(),
+      profiles: profile ? { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role } : undefined,
+    } as Message;
+    setMessages(previous => [...previous, optimistic]);
+    setContent('');
+    window.setTimeout(scrollToBottom, 0);
     setSending(true); setError('');
     const endpoint = active.kind === 'channel' ? '/api/chat/messages' : '/api/direct-messages';
-    const body = active.kind === 'channel' ? { channel: active.id, content } : { recipientId: active.id, content };
+    const body = active.kind === 'channel' ? { channel: active.id, content: messageContent } : { recipientId: active.id, content: messageContent };
     const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const result = await response.json().catch(() => ({}));
     setSending(false);
-    if (!response.ok) { setError(result.error || 'Message could not be sent.'); return; }
+    if (!response.ok) {
+      setMessages(previous => previous.filter(message => message.id !== optimisticId));
+      setError(result.error || 'Message could not be sent.');
+      return;
+    }
     if (active.kind === 'direct' && result.conversationId) setConversationId(result.conversationId);
     if (result.message) {
       const sent = {
         ...result.message,
         profiles: profile ? { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role } : undefined,
       } as Message;
-      setMessages(previous => previous.some(message => message.id === sent.id) ? previous : [...previous, sent]);
+      setMessages(previous => [...previous.filter(message => message.id !== optimisticId), sent]);
       window.setTimeout(scrollToBottom, 50);
     }
-    setContent('');
   };
 
   const conversation = <main className={`${mobileChatOpen ? 'fixed inset-0 z-50 flex min-h-[100dvh]' : 'hidden'} min-w-0 flex-1 flex-col bg-[var(--bg-card)] md:static md:flex md:min-h-0`}>
