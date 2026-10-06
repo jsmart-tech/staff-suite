@@ -52,25 +52,12 @@ export default function EmployeeProfilePage() {
     if (!file || !profile) return;
     setUploading(true);
     setUploadError('');
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const path = `${profile.id}/avatar.${ext}`;
-    const { error } = await supabase.storage.from('avatars').upload(path, file, {
-      upsert: true,
-      contentType: file.type,
-      cacheControl: '3600',
-    });
-    if (error) {
-      setUploadError(error.message);
-    } else {
-      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
-      const avatarUrl = `${publicUrl}?v=${Date.now()}`;
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: avatarUrl })
-        .eq('id', profile.id);
-      if (profileError) setUploadError(profileError.message);
-      else setProfile({ ...profile, avatar_url: avatarUrl });
-    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch('/api/profile/avatar', { method: 'POST', body: formData });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) setUploadError(result.error || 'Image upload failed.');
+    else setProfile({ ...profile, avatar_url: result.avatarUrl });
     setUploading(false);
     e.target.value = '';
   };
