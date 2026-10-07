@@ -303,7 +303,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
       {/* Mobile toggle button */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 w-10 h-10 rounded-xl flex items-center justify-center glass-bright"
+        className="lg:hidden fixed top-3 right-3 z-50 w-10 h-10 rounded-xl flex items-center justify-center glass-bright"
       >
         <Menu size={18} />
       </button>

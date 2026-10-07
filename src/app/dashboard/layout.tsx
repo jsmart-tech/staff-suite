@@ -44,7 +44,7 @@ export default async function DashboardLayout({
     <div className="app-shell">
       <Sidebar profile={profile as Profile} />
       <div className="main-area">
-        <div className="page-container">
+        <div className="page-container pt-16 sm:pt-7 lg:pt-8">
           {children}
         </div>
       </div>

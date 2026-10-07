@@ -154,7 +154,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   <div key={s.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--bg-hover)] transition-colors">
                     <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
                       style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white' }}>
-                      {getInitials(s.full_name)}
+                      {s.avatar_url ? <img src={s.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(s.full_name)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{s.full_name || 'Unnamed'}</p>
