@@ -12,6 +12,7 @@ interface PayrollRow {
   full_name: string | null;
   email: string;
   department: string | null;
+  avatar_url: string | null;
   role: string;
   hourly_rate: number;
   total_hours: number;
@@ -40,6 +41,7 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
           full_name: p.full_name,
           email: p.email,
           department: p.department,
+          avatar_url: p.avatar_url,
           role: p.role,
           hourly_rate: p.hourly_rate,
           total_hours,
@@ -157,9 +159,9 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
                       <tr key={row.user_id}>
                         <td>
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden text-xs font-bold"
                               style={{ background: 'linear-gradient(135deg, #10d98a, #38bdf8)', color: 'white' }}>
-                              {getInitials(row.full_name)}
+                              {row.avatar_url ? <img src={row.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(row.full_name)}
                             </div>
                             <div>
                               <p className="font-medium text-sm">{row.full_name || 'Unnamed'}</p>
