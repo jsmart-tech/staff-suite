@@ -53,6 +53,12 @@ export default function LoginPage() {
   }, [router]);
 
   /* ── Auth handler — untouched ── */
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('error') === 'expired_recovery_link') {
+      setError('This password reset link has expired or has already been used. Request a new one to continue.');
+    }
+  }, []);
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (showReset) {
