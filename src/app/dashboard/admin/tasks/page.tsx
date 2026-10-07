@@ -157,16 +157,18 @@ export default function AdminTasksPage() {
             </span>
           </button>
         ))}
-        <div className="relative ml-auto">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search tasks..."
-            className="input-field pl-8 py-2 text-sm"
-            style={{ width: '220px' }}
-          />
+        <div className="ml-auto flex flex-wrap gap-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search tasks..."
+              className="input-field pl-8 py-2 text-sm"
+              style={{ width: '220px' }}
+            />
+          </div>
           <input
             type="date"
             value={dateFilter}
