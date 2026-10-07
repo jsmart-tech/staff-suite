@@ -20,6 +20,7 @@ export default function ChatPage() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [content, setContent] = useState('');
   const [attachment, setAttachment] = useState<{ url: string; name: string } | null>(null);
+  const [attachmentKind, setAttachmentKind] = useState<'photo' | 'document' | 'audio' | 'video'>('photo');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [unreadScopes, setUnreadScopes] = useState<string[]>([]);
@@ -62,6 +63,19 @@ export default function ChatPage() {
   }, [loadUnread]);
 
   useEffect(() => {
+    const input = document.querySelector('main input[type="file"]');
+    if (!input) return;
+    const chooseType = () => {
+      const choice = window.prompt('Upload type: photo, video, document, or audio', attachmentKind);
+      if (choice && ['photo', 'video', 'document', 'audio'].includes(choice.toLowerCase())) {
+        setAttachmentKind(choice.toLowerCase() as typeof attachmentKind);
+      }
+    };
+    input.addEventListener('click', chooseType);
+    return () => input.removeEventListener('click', chooseType);
+  }, [attachmentKind]);
+
+  useEffect(() => {
     if (!profile) return;
     const load = async (reset = false) => {
       setError('');
@@ -69,7 +83,7 @@ export default function ChatPage() {
       if (active.kind === 'channel') {
         const { data, error: loadError } = await supabase.from('chat_messages').select('*, profiles(full_name, avatar_url, role)').eq('channel', active.id).order('created_at').limit(100);
         if (loadError) setError(loadError.message);
-        setMessages((data || []) as Message[]);
+        setMessages(Array.from(new Map((data || []).map(message => [message.id, message])).values()) as Message[]);
         if (reset) {
           markAsRead('channel', active.id);
           setUnreadScopes(current => current.filter(scope => scope !== `channel:${active.id}`));
@@ -84,7 +98,7 @@ export default function ChatPage() {
           return;
         }
         const { data } = await supabase.from('direct_messages').select('*, profiles(full_name, avatar_url, role)').eq('conversation_id', conversation.id).order('created_at').limit(100);
-        setMessages((data || []) as Message[]);
+        setMessages(Array.from(new Map((data || []).map(message => [message.id, message])).values()) as Message[]);
         if (reset) markAsRead('direct', conversation.id);
         if (reset) setUnreadDirectIds(current => current.filter(id => id !== active.id));
       }
@@ -102,7 +116,7 @@ export default function ChatPage() {
       const { data } = await supabase.from(table).select('*, profiles(full_name, avatar_url, role)').eq('id', payload.new.id).single();
       if (data) setMessages(previous => {
         if (previous.some(message => message.id === data.id)) return previous;
-        const pendingIndex = previous.findIndex(message => message.id.startsWith('pending-') && message.sender_id === data.sender_id && message.content === data.content);
+        const pendingIndex = previous.findIndex(message => message.id.startsWith('pending-') && message.sender_id === data.sender_id && message.content === data.content && (message.attachment_url || '') === (data.attachment_url || '') && (message.attachment_name || '') === (data.attachment_name || ''));
         if (pendingIndex === -1) return [...previous, data as Message];
         return previous.map((message, index) => index === pendingIndex ? data as Message : message);
       });
@@ -114,12 +128,14 @@ export default function ChatPage() {
   const send = async () => {
     if (!content.trim() && !attachment) return;
     const messageContent = content.trim();
-    const displayedContent = attachment ? `${messageContent}${messageContent ? '\n' : ''}📎 ${attachment.name}: ${attachment.url}` : messageContent;
+    const displayedContent = messageContent;
     const optimisticId = `pending-${Date.now()}`;
     const optimistic = {
       id: optimisticId,
       sender_id: profile?.id || '',
       content: displayedContent || `📎 ${attachment?.name}: ${attachment?.url}`,
+      attachment_url: attachment?.url,
+      attachment_name: attachment?.name,
       created_at: new Date().toISOString(),
       profiles: profile ? { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role } : undefined,
     } as Message;
@@ -145,6 +161,7 @@ export default function ChatPage() {
       setMessages(previous => [...previous.filter(message => message.id !== optimisticId && !(message.sender_id === sent.sender_id && message.content === sent.content && message.id !== sent.id)), sent]);
     }
     setAttachment(null);
+    setAttachmentKind('photo');
   };
 
   const uploadAttachment = async (event: React.ChangeEvent<HTMLInputElement>) => {
