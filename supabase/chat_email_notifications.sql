@@ -1,6 +1,6 @@
 -- Run this once in the Supabase SQL Editor.
 -- It holds one pending reminder per recipient and chat scope, so new messages
--- reset the same 30-minute timer instead of creating additional emails.
+-- reset the same 10-minute timer instead of creating additional emails.
 CREATE TABLE IF NOT EXISTS public.chat_email_notifications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   recipient_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,

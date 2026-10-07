@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       conversation_id: conversation.id,
       sender_name: sender?.full_name || 'A teammate',
       message_preview: content.trim(),
-      due_at: new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
+      due_at: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
       seen_at: null,
       sent_at: null,
     }, { onConflict: 'recipient_id,scope_key' }).select('id').single();

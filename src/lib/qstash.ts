@@ -12,7 +12,7 @@ export async function scheduleChatReminder(notificationId: string) {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
-      'Upstash-Delay': '30m',
+      'Upstash-Delay': '10m',
       'Upstash-Forward-x-cron-secret': callbackSecret,
     },
     body: JSON.stringify({ notificationId }),
