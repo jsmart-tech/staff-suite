@@ -26,7 +26,19 @@ export default function ChatPage() {
   const [unreadDirectIds, setUnreadDirectIds] = useState<string[]>([]);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
-  const scrollToBottom = useCallback(() => endRef.current?.scrollIntoView(), []);
+  const nearBottomRef = useRef(true);
+  const scrollToBottom = useCallback(() => {
+    if (nearBottomRef.current) endRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, []);
+  useEffect(() => {
+    const section = document.querySelector('main section');
+    if (!section) return;
+    const handleScroll = () => {
+      nearBottomRef.current = section.scrollHeight - section.scrollTop - section.clientHeight < 120;
+    };
+    section.addEventListener('scroll', handleScroll, { passive: true });
+    return () => section.removeEventListener('scroll', handleScroll);
+  }, [active]);
   const markAsRead = useCallback((type: 'channel' | 'direct', id: string) => {
     void fetch('/api/chat/read', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, id }),
@@ -90,7 +102,7 @@ export default function ChatPage() {
         if (reset) markAsRead('direct', conversation.id);
         if (reset) setUnreadDirectIds(current => current.filter(id => id !== active.id));
       }
-      window.setTimeout(scrollToBottom, 50);
+      if (nearBottomRef.current) window.setTimeout(scrollToBottom, 50);
     };
     void load(true);
     const refresh = window.setInterval(() => { void load(); }, 5000);
@@ -110,7 +122,7 @@ export default function ChatPage() {
         return previous.map((message, index) => index === pendingIndex ? data as Message : message);
       });
       markAsRead(active.kind, active.kind === 'channel' ? active.id : conversationId!);
-      window.setTimeout(scrollToBottom, 50);
+      if (nearBottomRef.current) window.setTimeout(scrollToBottom, 50);
     }).subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [active, conversationId, markAsRead, scrollToBottom]);
@@ -129,7 +141,8 @@ export default function ChatPage() {
     } as Message;
     setMessages(previous => [...previous, optimistic]);
     setContent('');
-    window.setTimeout(scrollToBottom, 0);
+    nearBottomRef.current = true;
+    window.setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'auto' }), 0);
     setSending(true); setError('');
     const endpoint = active.kind === 'channel' ? '/api/chat/messages' : '/api/direct-messages';
     const body = active.kind === 'channel' ? { channel: active.id, content: displayedContent || `📎 ${attachment?.name}: ${attachment?.url}`, attachmentUrl: attachment?.url, attachmentName: attachment?.name } : { recipientId: active.id, content: displayedContent || `📎 ${attachment?.name}: ${attachment?.url}`, attachmentUrl: attachment?.url, attachmentName: attachment?.name };
@@ -148,7 +161,7 @@ export default function ChatPage() {
         profiles: profile ? { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role } : undefined,
       } as Message;
       setMessages(previous => [...previous.filter(message => message.id !== optimisticId && !(message.sender_id === sent.sender_id && message.content === sent.content && message.id !== sent.id)), sent]);
-      window.setTimeout(scrollToBottom, 50);
+      if (nearBottomRef.current) window.setTimeout(scrollToBottom, 50);
     }
     setAttachment(null);
   };
