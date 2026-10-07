@@ -33,6 +33,7 @@ const navItems: NavItem[] = [
   // Accountant
   { href: '/dashboard/accountant/payroll', label: 'Payroll', icon: DollarSign, roles: ['accountant'] },
   { href: '/dashboard/accountant/hours', label: 'Hours Report', icon: Clock, roles: ['accountant'] },
+  { href: '/dashboard/employee/tasks', label: 'My Tasks', icon: CheckSquare, roles: ['accountant'] },
   // Employee
   { href: '/dashboard/employee/tasks', label: 'My Tasks', icon: CheckSquare, roles: ['employee'] },
   { href: '/dashboard/employee/profile', label: 'My Profile', icon: User, roles: ['admin', 'accountant', 'employee'] },
@@ -66,7 +67,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
       const [channelMessages, directMessages, tasks] = await Promise.all([
         supabase.from('chat_messages').select('id').neq('sender_id', profile.id).gt('created_at', chatSeenAt).limit(1),
         supabase.from('direct_messages').select('id').neq('sender_id', profile.id).gt('created_at', chatSeenAt).limit(1),
-        profile.role === 'employee'
+        profile.role === 'employee' || profile.role === 'accountant'
           ? supabase.from('tasks').select('id').eq('user_id', profile.id).gt('created_at', taskSeenAt).limit(1)
           : Promise.resolve({ data: [] }),
       ]);
