@@ -26,6 +26,14 @@ export default function HomePage() {
       return;
     }
 
+    // Supabase can complete a recovery link at `/` without preserving a
+    // code or hash. Keep the user in the password-reset flow instead of
+    // sending an already signed-in user to their role dashboard.
+    if (type === 'recovery') {
+      window.location.replace(`/accept-invite?mode=recovery${window.location.hash}`);
+      return;
+    }
+
     const supabase = createClient();
     void supabase.auth.getSession().then(({ data: { session } }) => {
       router.replace(session ? '/dashboard' : '/login');
