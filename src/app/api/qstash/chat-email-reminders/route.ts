@@ -1,15 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Receiver } from '@upstash/qstash';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendNotificationEmails, getSiteUrl } from '@/lib/email';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
-  const secret = process.env.CHAT_REMINDER_CRON_SECRET;
-  if (!secret || request.headers.get('x-cron-secret') !== secret) {
+  const currentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
+  const nextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
+  const signature = request.headers.get('upstash-signature');
+  const body = await request.text();
+  if (!currentSigningKey || !nextSigningKey) {
+    return NextResponse.json({ error: 'QStash signature verification is not configured.' }, { status: 503 });
+  }
+  if (!signature) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const { notificationId } = await request.json();
+
+  const receiver = new Receiver({ currentSigningKey, nextSigningKey });
+  try {
+    await receiver.verify({ signature, body, url: request.url });
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  let notificationId: string | undefined;
+  try {
+    ({ notificationId } = JSON.parse(body));
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
+  }
   if (!notificationId) return NextResponse.json({ error: 'notificationId is required.' }, { status: 400 });
 
   const admin = createAdminClient();

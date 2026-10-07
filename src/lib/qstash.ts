@@ -1,8 +1,7 @@
 export async function scheduleChatReminder(notificationId: string) {
   const token = process.env.QSTASH_TOKEN;
   const site = process.env.NEXT_PUBLIC_SITE_URL;
-  const callbackSecret = process.env.CHAT_REMINDER_CRON_SECRET;
-  if (!token || !site || !callbackSecret) {
+  if (!token || !site) {
     return { error: 'QStash scheduling is not configured.' };
   }
 
@@ -13,7 +12,6 @@ export async function scheduleChatReminder(notificationId: string) {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       'Upstash-Delay': '10m',
-      'Upstash-Forward-x-cron-secret': callbackSecret,
     },
     body: JSON.stringify({ notificationId }),
   });
