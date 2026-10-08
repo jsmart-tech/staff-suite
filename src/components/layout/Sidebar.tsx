@@ -181,42 +181,55 @@ export function Sidebar({ profile }: { profile: Profile }) {
           const isNew = (item.href === '/dashboard/chat' && hasNewChat)
             || (item.href === '/dashboard/employee/tasks' && hasNewTask);
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                'nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
-                isActive
-                  ? 'active bg-[rgba(124,91,246,0.12)] text-white'
-                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-white'
-              )}
-            >
-              <item.icon size={18} className="flex-shrink-0" style={{ color: isActive ? 'var(--accent-violet)' : undefined }} />
-              <AnimatePresence>
-                {!collapsed && (
-                  <motion.span
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: 'auto' }}
-                    exit={{ opacity: 0, width: 0 }}
-                    className="whitespace-nowrap overflow-hidden"
-                  >
-                    {item.label}
-                  </motion.span>
+            <div key={`${item.href}-${item.label}`}>
+              <Link
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  'nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+                  isActive
+                    ? 'active bg-[rgba(124,91,246,0.12)] text-white'
+                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-white'
                 )}
-              </AnimatePresence>
-              {!collapsed && isNew ? (
-                <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                  style={{ background: 'rgba(16,217,138,0.16)', color: 'var(--accent-emerald)' }}>
-                  New
-                </span>
-              ) : !collapsed && item.badge ? (
-                <span className="ml-auto text-xs px-2 py-0.5 rounded-full font-semibold"
-                  style={{ background: 'var(--accent-violet)', color: 'white' }}>
-                  {item.badge}
-                </span>
-              ) : null}
-            </Link>
+              >
+                <item.icon size={18} className="flex-shrink-0" style={{ color: isActive ? 'var(--accent-violet)' : undefined }} />
+                <AnimatePresence>
+                  {!collapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: 'auto' }}
+                      exit={{ opacity: 0, width: 0 }}
+                      className="whitespace-nowrap overflow-hidden"
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+                {!collapsed && isNew ? (
+                  <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    style={{ background: 'rgba(16,217,138,0.16)', color: 'var(--accent-emerald)' }}>
+                    New
+                  </span>
+                ) : !collapsed && item.badge ? (
+                  <span className="ml-auto text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style={{ background: 'var(--accent-violet)', color: 'white' }}>
+                    {item.badge}
+                  </span>
+                ) : null}
+              </Link>
+              {item.label === 'My Tasks' && (
+                <div className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--text-secondary)]">
+                  <NotificationCenter userId={profile.id} />
+                  <AnimatePresence>
+                    {!collapsed && (
+                      <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">
+                        Notifications
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>
@@ -272,9 +285,6 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
   return (
     <>
-      <div className="fixed right-16 top-10 z-[60] lg:right-5 lg:top-5">
-        <NotificationCenter userId={profile.id} />
-      </div>
       <AnimatePresence>
         {notice && (
           <motion.div
