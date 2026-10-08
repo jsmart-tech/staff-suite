@@ -227,7 +227,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
           'bg-[var(--bg-hover)]')}>
           <div className="relative w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden text-xs font-bold"
             style={{ background: 'linear-gradient(135deg, #f1958d, #aff0e2)', color: '#333333' }}>
-            {profile.avatar_url ? <Image src={profile.avatar_url} alt="" fill sizes="32px" unoptimized className="object-cover" /> : getInitials(profile.full_name)}
+            {profile.avatar_url ? <Image src={profile.avatar_url} alt="" fill sizes="32px" unoptimized priority className="object-cover" /> : getInitials(profile.full_name)}
           </div>
           <AnimatePresence>
             {!collapsed && (
