@@ -226,9 +226,9 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
       {/* Profile + Sign Out */}
       <div className="p-3 border-t border-[var(--border)]">
-        {profile.role === 'admin' && (
+        {
           <Link
-            href="/dashboard/admin/settings"
+            href={profile.role === 'admin' ? '/dashboard/admin/settings' : '/dashboard/employee/profile'}
             onClick={() => setMobileOpen(false)}
             className="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-white"
           >
@@ -237,7 +237,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
               {!collapsed && <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">Settings</motion.span>}
             </AnimatePresence>
           </Link>
-        )}
+        }
         <div className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1',
           'bg-[var(--bg-hover)]')}>
           <div className="relative w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden text-xs font-bold"
