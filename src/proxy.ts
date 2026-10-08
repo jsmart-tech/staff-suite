@@ -41,6 +41,7 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
+  const mustSetPassword = user?.user_metadata?.must_set_password === true;
   const isAuthPage   = pathname === '/login';
   const isApiRequest = pathname.startsWith('/api/');
   const isPublicPage = pathname === '/'
@@ -57,6 +58,13 @@ export async function proxy(request: NextRequest) {
 
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
+  if (user && mustSetPassword && pathname !== '/accept-invite' && pathname !== '/reset-password' && !pathname.startsWith('/auth/')) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/reset-password';
+    url.search = '';
     return NextResponse.redirect(url);
   }
 

@@ -83,7 +83,7 @@ export default function AcceptInvitePage() {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      const { error } = await supabase.auth.updateUser({ password, data: { must_set_password: false } });
       if (error) throw error;
 
       setDone(true);

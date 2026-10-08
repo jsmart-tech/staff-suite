@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     if (!Number.isFinite(rate) || rate < 0) return NextResponse.json({ error: 'Hourly rate must be a non-negative number.' }, { status: 400 });
 
     const admin = createAdminClient();
-    const metadata = { full_name: full_name || '', role, department: department || '', hourly_rate: rate };
+    const metadata = { full_name: full_name || '', role, department: department || '', hourly_rate: rate, must_set_password: true };
     const { data, error } = await admin.auth.admin.generateLink({
       type: 'invite',
       email: email.trim(),
