@@ -6,7 +6,7 @@ import { Bell, CheckCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { AppNotification } from '@/types';
 
-export function NotificationCenter({ userId }: { userId: string }) {
+export function NotificationCenter({ userId, label }: { userId: string; label?: string }) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const centerRef = useRef<HTMLDivElement>(null);
@@ -54,8 +54,9 @@ export function NotificationCenter({ userId }: { userId: string }) {
 
   return (
     <div ref={centerRef} className="relative">
-      <button type="button" onClick={() => setOpen(current => !current)} aria-label="Notifications" className="relative rounded-xl p-2 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-white">
+      <button type="button" onClick={() => setOpen(current => !current)} aria-label="Notifications" className="relative flex w-full items-center gap-3 rounded-xl px-0 py-0 text-left text-[var(--text-secondary)] hover:text-white">
         <Bell size={18} />
+        {label && <span className="whitespace-nowrap">{label}</span>}
         {unread.length > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-[var(--accent-rose)] px-1 text-[10px] font-bold text-white">{unread.length > 9 ? '9+' : unread.length}</span>}
       </button>
       {open && (

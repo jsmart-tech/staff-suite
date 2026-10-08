@@ -217,21 +217,12 @@ export function Sidebar({ profile }: { profile: Profile }) {
                   </span>
                 ) : null}
               </Link>
-              {item.label === 'My Tasks' && (
-                <div className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--text-secondary)]">
-                  <NotificationCenter userId={profile.id} />
-                  <AnimatePresence>
-                    {!collapsed && (
-                      <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">
-                        Notifications
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
             </div>
           );
         })}
+        <div className="mt-1 rounded-xl px-3 py-2.5 text-sm font-medium">
+          <NotificationCenter userId={profile.id} label={collapsed ? undefined : 'Notifications'} />
+        </div>
       </nav>
 
       {/* Profile + Sign Out */}
