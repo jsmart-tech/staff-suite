@@ -41,7 +41,12 @@ export default function AdminStaffPage() {
   const supabase = createClient();
 
   const fetchStaff = async () => {
-    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+    const { data, error: fetchError } = await supabase.from('profiles').select('*').eq('invitation_accepted', true).order('created_at', { ascending: false });
+    if (fetchError) {
+      setError(fetchError.message);
+      setLoading(false);
+      return;
+    }
     setStaff(data as Profile[] || []);
     setLoading(false);
   };

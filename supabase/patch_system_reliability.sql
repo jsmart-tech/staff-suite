@@ -36,6 +36,18 @@ CREATE POLICY "Users can mark own notifications read"
 ALTER TABLE public.chat_messages ADD COLUMN IF NOT EXISTS client_message_id uuid;
 ALTER TABLE public.direct_messages ADD COLUMN IF NOT EXISTS client_message_id uuid;
 
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS invitation_accepted boolean NOT NULL DEFAULT true;
+
+UPDATE public.profiles p
+SET invitation_accepted = false
+FROM auth.users u
+WHERE u.id = p.id
+  AND (
+    u.email_confirmed_at IS NULL
+    OR COALESCE(u.raw_user_meta_data->>'must_set_password', 'false') = 'true'
+  );
+
 CREATE UNIQUE INDEX IF NOT EXISTS chat_messages_sender_client_message_unique
   ON public.chat_messages (sender_id, client_message_id)
   WHERE client_message_id IS NOT NULL;

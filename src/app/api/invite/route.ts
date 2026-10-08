@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
         role,
         department: department || null,
         hourly_rate: rate,
+        invitation_accepted: false,
       }, { onConflict: 'id' });
       if (profileError) return NextResponse.json({ error: profileError.message }, { status: 400 });
     }

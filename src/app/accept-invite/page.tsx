@@ -85,6 +85,8 @@ export default function AcceptInvitePage() {
     try {
       const { error } = await supabase.auth.updateUser({ password, data: { must_set_password: false } });
       if (error) throw error;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) await supabase.from('profiles').update({ invitation_accepted: true }).eq('id', user.id);
 
       setDone(true);
       // Give user a moment to see the success state, then redirect
