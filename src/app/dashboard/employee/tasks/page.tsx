@@ -40,12 +40,6 @@ function hoursSince(startTime: string) {
   return (Date.now() - new Date(startTime).getTime()) / 3600000;
 }
 
-function localDate() {
-  const now = new Date();
-  const offset = now.getTimezoneOffset() * 60000;
-  return new Date(now.getTime() - offset).toISOString().split('T')[0];
-}
-
 export default function EmployeeTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -219,9 +213,12 @@ export default function EmployeeTasksPage() {
     blocked: tasks.filter(t => t.status === 'blocked').length,
   };
 
-  const totalHoursToday = tasks
-    .filter(t => (t.start_date || t.date_worked) === localDate() || t.is_timer_running)
-    .reduce((s, t) => s + t.hours_spent + ((t.is_timer_running ? liveTimers[t.id] || 0 : 0) / 3600), 0);
+  // Include persisted hours from every task; date filtering made the header
+  // reset after stopping a task whose work date was not today.
+  const totalHoursLogged = tasks.reduce(
+    (total, task) => total + task.hours_spent + ((task.is_timer_running ? liveTimers[task.id] || 0 : 0) / 3600),
+    0,
+  );
 
   return (
     <div>
@@ -229,7 +226,7 @@ export default function EmployeeTasksPage() {
         <div>
           <h1 className="page-title">My Tasks</h1>
           <p className="page-subtitle">
-            Track your work · <span style={{ color: 'var(--accent-sky)' }}>{formatTimer(Math.floor(totalHoursToday * 3600))}</span> logged today
+            Track your work · <span style={{ color: 'var(--accent-sky)' }}>{formatTimer(Math.floor(totalHoursLogged * 3600))}</span> logged
           </p>
         </div>
         <button
