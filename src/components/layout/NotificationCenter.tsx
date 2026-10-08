@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Bell, CheckCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { AppNotification } from '@/types';
 
-export function NotificationCenter({ userId, label }: { userId: string; label?: string }) {
+export function NotificationCenter({ userId, label, openPage = false }: { userId: string; label?: string; openPage?: boolean }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const centerRef = useRef<HTMLDivElement>(null);
@@ -54,12 +56,12 @@ export function NotificationCenter({ userId, label }: { userId: string; label?: 
 
   return (
     <div ref={centerRef} className="relative">
-      <button type="button" onClick={() => setOpen(current => !current)} aria-label="Notifications" className="relative flex w-full items-center gap-3 rounded-xl px-0 py-0 text-left text-[var(--text-secondary)] hover:text-white">
+      <button type="button" onClick={() => openPage ? router.push('/dashboard/notifications') : setOpen(current => !current)} aria-label="Notifications" className="relative flex w-full items-center gap-3 rounded-xl px-0 py-0 text-left text-[var(--text-secondary)] hover:text-white">
         <Bell size={18} />
         {label && <span className="whitespace-nowrap">{label}</span>}
         {unread.length > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-[var(--accent-rose)] px-1 text-[10px] font-bold text-white">{unread.length > 9 ? '9+' : unread.length}</span>}
       </button>
-      {open && (
+      {!openPage && open && (
         <div className="absolute right-0 top-11 z-[80] w-[min(360px,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] shadow-2xl max-lg:fixed max-lg:left-2 max-lg:right-auto max-lg:top-16">
           <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
             <div><p className="text-sm font-semibold">Notifications</p><p className="text-xs text-[var(--text-muted)]">{unread.length} unread</p></div>

@@ -221,7 +221,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
           );
         })}
         <div className="mt-1 rounded-xl px-3 py-2.5 text-sm font-medium">
-          <NotificationCenter userId={profile.id} label={collapsed ? undefined : 'Notifications'} />
+          <NotificationCenter userId={profile.id} label={collapsed ? undefined : 'Notifications'} openPage />
         </div>
       </nav>
 
