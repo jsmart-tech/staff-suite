@@ -219,8 +219,8 @@ export function Sidebar({ profile }: { profile: Profile }) {
             </div>
           );
         })}
-        <div className="mt-1 rounded-xl px-3 py-2.5 text-sm font-medium">
-          <NotificationCenter userId={profile.id} label={collapsed ? undefined : 'Notifications'} openPage onNavigate={() => setMobileOpen(false)} />
+        <div className="mt-1 text-sm font-medium">
+          <NotificationCenter userId={profile.id} label={collapsed ? undefined : 'Notifications'} openPage active={pathname === '/dashboard/notifications'} onNavigate={() => setMobileOpen(false)} />
         </div>
       </nav>
 
