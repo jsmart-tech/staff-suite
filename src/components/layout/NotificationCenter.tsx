@@ -60,7 +60,7 @@ export function NotificationCenter({ userId, label }: { userId: string; label?: 
         {unread.length > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-[var(--accent-rose)] px-1 text-[10px] font-bold text-white">{unread.length > 9 ? '9+' : unread.length}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 top-11 z-[80] w-[min(360px,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] shadow-2xl">
+        <div className="absolute right-0 top-11 z-[80] w-[min(360px,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] shadow-2xl max-lg:fixed max-lg:left-2 max-lg:right-auto max-lg:top-16">
           <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
             <div><p className="text-sm font-semibold">Notifications</p><p className="text-xs text-[var(--text-muted)]">{unread.length} unread</p></div>
             {unread.length > 0 && <button type="button" onClick={() => void markRead()} className="flex items-center gap-1 text-xs font-semibold text-[var(--accent-violet)]"><CheckCheck size={14} /> Mark all read</button>}
