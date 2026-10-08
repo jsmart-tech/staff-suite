@@ -235,7 +235,7 @@ export default function AdminStaffPage() {
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 overflow-hidden"
                             style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white' }}>
-                            {s.avatar_url ? <img src={s.avatar_url} alt="" className="w-full h-full object-cover" /> : getInitials(s.full_name)}
+                            {s.avatar_url ? <img src={s.avatar_url} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover" /> : getInitials(s.full_name)}
                           </div>
                           <div>
                             <p className="font-medium text-sm">{s.full_name || 'Unnamed'}</p>

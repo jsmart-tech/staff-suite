@@ -73,7 +73,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
             style={{ background: 'linear-gradient(135deg, #7c5bf6, #5b3fd4)', color: 'white' }}>
-            {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(profile.full_name)}
+            {profile.avatar_url ? <img src={profile.avatar_url} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} className="h-full w-full object-cover" /> : getInitials(profile.full_name)}
           </div>
           <div>
             <h1 className="page-title">
@@ -154,7 +154,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                   <div key={s.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--bg-hover)] transition-colors">
                     <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
                       style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white' }}>
-                      {s.avatar_url ? <img src={s.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(s.full_name)}
+                      {s.avatar_url ? <img src={s.avatar_url} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} className="h-full w-full object-cover" /> : getInitials(s.full_name)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{s.full_name || 'Unnamed'}</p>

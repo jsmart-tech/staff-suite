@@ -219,7 +219,7 @@ export default function AdminTasksPage() {
                           <div className="flex items-center gap-2">
                             <div className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden text-[10px] font-bold"
                               style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white' }}>
-                              {task.profiles?.avatar_url ? <img src={task.profiles.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(task.profiles?.full_name)}
+                              {task.profiles?.avatar_url ? <img src={task.profiles.avatar_url} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} className="h-full w-full object-cover" /> : getInitials(task.profiles?.full_name)}
                             </div>
                             <span className="text-sm">{task.profiles?.full_name || 'Unknown'}</span>
                           </div>
