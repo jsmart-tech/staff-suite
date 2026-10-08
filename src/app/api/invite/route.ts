@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { sendNotificationEmail } from '@/lib/email';
 
 // Invitations must always use the public production domain. Deployment-specific
 // Vercel URLs can be protected and would send new employees to Vercel login.
@@ -28,9 +29,10 @@ export async function POST(req: NextRequest) {
 
     const admin = createAdminClient();
     const metadata = { full_name: full_name || '', role, department: department || '', hourly_rate: rate };
-    const { data, error } = await admin.auth.admin.inviteUserByEmail(email.trim(), {
-      data: metadata,
-      redirectTo: REDIRECT,
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: 'invite',
+      email: email.trim(),
+      options: { data: metadata, redirectTo: REDIRECT },
     });
 
     if (error) {
@@ -53,7 +55,19 @@ export async function POST(req: NextRequest) {
       if (profileError) return NextResponse.json({ error: profileError.message }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true });
+    const inviteEmail = await sendNotificationEmail({
+      to: email.trim(),
+      subject: 'You are invited to Staff Suite',
+      heading: 'Welcome to Staff Suite',
+      body: `${full_name ? `Hi ${full_name},\n\n` : ''}You have been invited to join the Staff Suite workspace as an ${role}. Click below to create your password and activate your account.`,
+      actionUrl: data.properties?.action_link || REDIRECT,
+      actionLabel: 'Accept invitation',
+    });
+    if (inviteEmail.error) {
+      return NextResponse.json({ error: `The account was created, but the invitation email could not be sent: ${inviteEmail.error}` }, { status: 502 });
+    }
+
+    return NextResponse.json({ success: true, emailSent: true });
   } catch (error: unknown) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unexpected error' }, { status: 500 });
   }
