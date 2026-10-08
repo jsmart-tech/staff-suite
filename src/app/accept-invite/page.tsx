@@ -26,11 +26,9 @@ export default function AcceptInvitePage() {
      We must manually extract the tokens and call setSession() ourselves. */
   useEffect(() => {
     async function initSession() {
-      // 1. Try to get an existing session first (handles page refreshes)
-      const { data: { session: existing } } = await supabase.auth.getSession();
-      if (existing) { setSessionReady(true); return; }
-
-      // 2. Parse the hash fragment: #access_token=...&refresh_token=...
+      // A token in the invite URL must always win over an existing browser
+      // session. Otherwise a person opening an invite on a shared/already
+      // signed-in browser can accidentally set the password on the wrong user.
       const hash   = window.location.hash.slice(1); // remove leading '#'
       const params = new URLSearchParams(hash);
       const accessToken  = params.get('access_token');
@@ -49,6 +47,10 @@ export default function AcceptInvitePage() {
         }
         setError(isRecovery ? 'This password reset link is invalid or has expired. Request a new one from the login page.' : 'Invitation link is invalid or has expired. Please ask for a new invite.');
       } else {
+        // Refreshes arrive without a hash, so reuse the current session only
+        // after there is no new token to process.
+        const { data: { session: existing } } = await supabase.auth.getSession();
+        if (existing) { setSessionReady(true); return; }
         setError(isRecovery ? 'No password reset session was found. Request a new reset link from the login page.' : 'No invitation token found. Please use the link from your email.');
       }
       // Show the form anyway so the user sees the error
