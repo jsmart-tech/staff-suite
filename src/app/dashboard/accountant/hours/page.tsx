@@ -50,7 +50,9 @@ export default function AccountantHoursPage() {
       setRows(result);
       setLoading(false);
     };
-    fetch();
+    void fetch();
+    const refresh = window.setInterval(() => { void fetch(); }, 5000);
+    return () => window.clearInterval(refresh);
   }, []);
 
   const filtered = useMemo(() => {

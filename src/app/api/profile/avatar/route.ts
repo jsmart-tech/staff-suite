@@ -1,7 +1,9 @@
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { r2, r2Bucket } from '@/lib/r2';
+import { createNotifications } from '@/lib/notifications';
 
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -22,5 +24,21 @@ export async function POST(request: Request) {
   const avatarUrl = `/api/files/${key}?v=${Date.now()}`;
   const { error } = await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', user.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  const { data: admins } = await createAdminClient().from('profiles').select('id').eq('role', 'admin');
+  try {
+    await createNotifications({
+      actorId: user.id,
+      recipientIds: (admins || []).map(admin => admin.id),
+      type: 'profile_updated',
+      title: 'Profile photo updated',
+      body: 'A team member updated their profile photo.',
+      href: '/dashboard/admin/staff',
+      entityType: 'profile',
+      entityId: user.id,
+      eventKey: `profile-avatar:${user.id}:${avatarUrl}`,
+    });
+  } catch (notificationError) {
+    console.error('Unable to create profile notification:', notificationError);
+  }
   return NextResponse.json({ avatarUrl });
 }

@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 export default function AcceptInvitePage() {
   const router = useRouter();
   const isRecovery = typeof window !== 'undefined'
-    && new URLSearchParams(window.location.search).get('mode') === 'recovery';
+    && (new URLSearchParams(window.location.search).get('mode') === 'recovery' || window.location.pathname === '/reset-password');
   const supabase = createClient();
 
   const [password, setPassword]               = useState('');
@@ -47,9 +47,9 @@ export default function AcceptInvitePage() {
           window.history.replaceState(null, '', window.location.pathname);
           return;
         }
-        setError('Invitation link is invalid or has expired. Please ask for a new invite.');
+        setError(isRecovery ? 'This password reset link is invalid or has expired. Request a new one from the login page.' : 'Invitation link is invalid or has expired. Please ask for a new invite.');
       } else {
-        setError('No invitation token found. Please use the link from your email.');
+        setError(isRecovery ? 'No password reset session was found. Request a new reset link from the login page.' : 'No invitation token found. Please use the link from your email.');
       }
       // Show the form anyway so the user sees the error
       setSessionReady(true);
@@ -88,7 +88,7 @@ export default function AcceptInvitePage() {
 
       setDone(true);
       // Give user a moment to see the success state, then redirect
-      setTimeout(() => router.push(isRecovery ? '/login?reset=success' : '/dashboard'), 1800);
+      setTimeout(() => router.push('/dashboard'), 1800);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
@@ -224,10 +224,10 @@ export default function AcceptInvitePage() {
               <div className="mb-7">
                 <h2 className="text-[1.65rem] font-bold leading-tight mb-2"
                   style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                  Create your password
+                  {isRecovery ? 'Reset your password' : 'Create your password'}
                 </h2>
                 <p className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>
-                  Choose a strong password to secure your account.
+                  {isRecovery ? 'Choose a new password for your account.' : 'Choose a strong password to secure your account.'}
                 </p>
               </div>
 
@@ -337,7 +337,7 @@ export default function AcceptInvitePage() {
                   className="btn-primary w-full h-11 text-[14px] font-semibold mt-1"
                 >
                   {loading && <Loader2 size={16} className="animate-spin" />}
-                  {loading ? 'Setting up your account…' : 'Set Password & Sign In'}
+                  {loading ? 'Updating password…' : isRecovery ? 'Reset Password' : 'Set Password & Sign In'}
                 </button>
               </form>
             </>

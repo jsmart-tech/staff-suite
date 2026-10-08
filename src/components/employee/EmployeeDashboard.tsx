@@ -29,7 +29,8 @@ export function EmployeeDashboard({ profile }: { profile: Profile }) {
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void fetchTasks(); }, 0);
-    return () => window.clearTimeout(timer);
+    const refresh = window.setInterval(() => { void fetchTasks(); }, 5000);
+    return () => { window.clearTimeout(timer); window.clearInterval(refresh); };
   }, [fetchTasks]);
 
   // Live timer tick
@@ -46,8 +47,8 @@ export function EmployeeDashboard({ profile }: { profile: Profile }) {
   }, [runningTask]);
 
   const todayHours = tasks
-    .filter(t => t.date_worked === new Date().toISOString().split('T')[0])
-    .reduce((s, t) => s + t.hours_spent, 0);
+    .filter(t => t.date_worked === new Date().toISOString().split('T')[0] || t.is_timer_running)
+    .reduce((s, t) => s + t.hours_spent, 0) + (runningTask?.date_worked === new Date().toISOString().split('T')[0] ? liveSeconds / 3600 : 0);
   const totalHours = tasks.reduce((s, t) => s + t.hours_spent, 0);
   const completed = tasks.filter(t => t.status === 'completed').length;
   const inProgress = tasks.filter(t => t.status === 'in_progress').length;

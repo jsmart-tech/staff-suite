@@ -16,7 +16,7 @@ export default function HomePage() {
     // Older invitation emails can redirect to `/` instead of `/auth/callback`.
     // Preserve their credentials and route them to the password-set screen.
     if (isPasswordLink && hash.get('access_token') && hash.get('refresh_token')) {
-      window.location.replace(`/accept-invite${window.location.hash}`);
+    window.location.replace(type === 'recovery' ? `/reset-password${window.location.hash}` : `/accept-invite${window.location.hash}`);
       return;
     }
 

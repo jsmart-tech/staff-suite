@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.redirect(new URL('/login?error=invalid_token', req.url));
 
     const dest = type === 'recovery'
-      ? '/accept-invite?mode=recovery'
+      ? '/reset-password'
       : type === 'invite'
         ? '/accept-invite'
       : next;
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     if (!error) {
       const dest = type === 'recovery'
-        ? '/accept-invite?mode=recovery'
+        ? '/reset-password'
         : type === 'invite'
           ? '/accept-invite'
         : next;
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
      correct destination, preserving the hash so Supabase JS can pick
      up the session tokens.                                             */
   const dest = type === 'recovery'
-    ? '/accept-invite?mode=recovery'
+    ? '/reset-password'
     : type === 'invite'
       ? '/accept-invite'
     : next;

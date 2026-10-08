@@ -45,7 +45,8 @@ export async function proxy(request: NextRequest) {
   const isApiRequest = pathname.startsWith('/api/');
   const isPublicPage = pathname === '/'
     || pathname.startsWith('/auth/')    // /auth/callback — invite token exchange
-    || pathname === '/accept-invite';   // invite password-set page
+    || pathname === '/accept-invite'
+    || pathname === '/reset-password';  // invite/recovery password-set pages
 
   if (!user && !isAuthPage && !isPublicPage) {
     // API consumers expect a machine-readable error, not the HTML login page.

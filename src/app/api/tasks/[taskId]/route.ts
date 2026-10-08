@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { sendNotificationEmails, getSiteUrl } from '@/lib/email';
+import { createNotifications } from '@/lib/notifications';
 
 /**
  * PATCH /api/tasks/[taskId]
@@ -114,7 +115,7 @@ async function notifyAdmins(opts: {
     // Fetch employee name and all admin emails in parallel
     const [{ data: employee }, { data: admins }] = await Promise.all([
       admin.from('profiles').select('full_name').eq('id', user.id).single(),
-      admin.from('profiles').select('email, full_name').eq('role', 'admin'),
+      admin.from('profiles').select('id, email, full_name').eq('role', 'admin'),
     ]);
 
     if (!admins || admins.length === 0) return;
@@ -133,6 +134,18 @@ async function notifyAdmins(opts: {
     }
     if ('timer_start_time' in patch && !('is_timer_running' in patch)) changes.push('Timer details updated');
     if (changes.length === 0) return; // Nothing worth notifying about
+
+    await createNotifications({
+      actorId: user.id,
+      recipientIds: admins.map(adminProfile => adminProfile.id),
+      type: 'task_updated',
+      title: `Task updated: ${task.title}`,
+      body: `${employeeName} updated this task: ${changes.join(', ')}`,
+      href: '/dashboard/admin/tasks',
+      entityType: 'task',
+      entityId: task.id,
+      eventKey: `task-updated:${task.id}:${new Date().toISOString()}`,
+    });
 
     const site = getSiteUrl();
     const notifications = admins.map((adminProfile) => ({

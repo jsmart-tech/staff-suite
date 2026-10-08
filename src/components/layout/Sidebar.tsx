@@ -13,6 +13,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
 import { cn, getInitials, getRoleBadgeColor } from '@/lib/utils';
+import { NotificationCenter } from './NotificationCenter';
 
 interface NavItem {
   href: string;
@@ -224,9 +225,9 @@ export function Sidebar({ profile }: { profile: Profile }) {
       <div className="p-3 border-t border-[var(--border)]">
         <div className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1',
           'bg-[var(--bg-hover)]')}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden text-xs font-bold"
+          <div className="relative w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden text-xs font-bold"
             style={{ background: 'linear-gradient(135deg, #f1958d, #aff0e2)', color: '#333333' }}>
-            {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : getInitials(profile.full_name)}
+            {profile.avatar_url ? <Image src={profile.avatar_url} alt="" fill sizes="32px" unoptimized className="object-cover" /> : getInitials(profile.full_name)}
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -271,6 +272,9 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
   return (
     <>
+      <div className="fixed right-16 top-10 z-[60] lg:right-5 lg:top-5">
+        <NotificationCenter userId={profile.id} />
+      </div>
       <AnimatePresence>
         {notice && (
           <motion.div

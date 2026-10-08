@@ -130,11 +130,12 @@ export default function EmployeeTasksPage() {
   const handleStartTimer = async (task: Task) => {
     const now = new Date().toISOString();
     setTasks(current => current.map(item => item.id === task.id ? { ...item, is_timer_running: true, timer_start_time: now, status: 'in_progress' } : item));
-    void patchTask(task.id, {
+    await patchTask(task.id, {
       is_timer_running: true,
       timer_start_time: now,
       status: 'in_progress',
     });
+    await fetchTasks();
   };
 
   const handleStopTimer = async (task: Task) => {
@@ -142,11 +143,12 @@ export default function EmployeeTasksPage() {
     const elapsed = hoursSince(task.timer_start_time);
     const newHours = parseFloat((task.hours_spent + elapsed).toFixed(4));
     setTasks(current => current.map(item => item.id === task.id ? { ...item, is_timer_running: false, timer_start_time: null, hours_spent: newHours } : item));
-    void patchTask(task.id, {
+    await patchTask(task.id, {
       is_timer_running: false,
       timer_start_time: null,
       hours_spent: newHours,
     });
+    await fetchTasks();
   };
 
   const handleSave = async () => {
@@ -167,8 +169,10 @@ export default function EmployeeTasksPage() {
         }),
       });
     } else {
-      // Self-created tasks go directly to Supabase (employee creating their own work log)
-      await supabase.from('tasks').insert({
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
         user_id: userId,
         title: form.title,
         description: form.description,
@@ -177,6 +181,7 @@ export default function EmployeeTasksPage() {
         date_worked: form.date_worked,
         start_date: form.start_date,
         due_date: form.due_date || null,
+        }),
       });
     }
     setForm(defaultForm);
@@ -215,7 +220,7 @@ export default function EmployeeTasksPage() {
   };
 
   const totalHoursToday = tasks
-    .filter(t => (t.start_date || t.date_worked) === localDate())
+    .filter(t => (t.start_date || t.date_worked) === localDate() || t.is_timer_running)
     .reduce((s, t) => s + t.hours_spent + ((t.is_timer_running ? liveTimers[t.id] || 0 : 0) / 3600), 0);
 
   return (

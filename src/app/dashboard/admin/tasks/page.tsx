@@ -71,7 +71,8 @@ export default function AdminTasksPage() {
         .order('full_name')
         .then(({ data }) => setStaff(data || []));
     }, 0);
-    return () => window.clearTimeout(timer);
+    const refresh = window.setInterval(() => { void fetchTasks(); }, 5000);
+    return () => { window.clearTimeout(timer); window.clearInterval(refresh); };
   }, []);
 
   /* ── Filter logic ── */

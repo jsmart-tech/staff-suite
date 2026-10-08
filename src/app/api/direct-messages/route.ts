@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { scheduleChatReminder } from '@/lib/qstash';
+import { createNotifications } from '@/lib/notifications';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { recipientId, content, attachmentUrl, attachmentName } = await request.json();
+    const { recipientId, content, attachmentUrl, attachmentName, clientMessageId } = await request.json();
     if (!recipientId || recipientId === user.id || typeof content !== 'string' || !content.trim()) return NextResponse.json({ error: 'Choose another staff member and enter a message.' }, { status: 400 });
     if (content.trim().length > 5000) return NextResponse.json({ error: 'Messages are limited to 5,000 characters.' }, { status: 400 });
 
@@ -26,12 +27,45 @@ export async function POST(request: NextRequest) {
       conversation = created.data;
     }
 
-    const { data: message, error } = await admin.from('direct_messages').insert({
-      conversation_id: conversation.id, sender_id: user.id, content: content.trim(), attachment_url: attachmentUrl || null, attachment_name: attachmentName || null,
+    const clientMessageIdValue = typeof clientMessageId === 'string' ? clientMessageId : null;
+    const inserted = await admin.from('direct_messages').insert({
+      conversation_id: conversation.id,
+      sender_id: user.id,
+      content: content.trim(),
+      attachment_url: attachmentUrl || null,
+      attachment_name: attachmentName || null,
+      client_message_id: clientMessageIdValue,
     }).select().single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    let message = inserted.data;
+    if (inserted.error?.code === '23505' && clientMessageIdValue) {
+      const existing = await admin.from('direct_messages')
+        .select('*')
+        .eq('sender_id', user.id)
+        .eq('client_message_id', clientMessageIdValue)
+        .maybeSingle();
+      message = existing.data;
+      if (existing.error || !message) return NextResponse.json({ error: 'Unable to recover the original message.' }, { status: 409 });
+      return NextResponse.json({ message, conversationId: conversation.id });
+    } else if (inserted.error) {
+      return NextResponse.json({ error: inserted.error.message }, { status: 400 });
+    }
 
     const now = new Date();
+    try {
+      await createNotifications({
+        actorId: user.id,
+        recipientIds: [recipientId],
+        type: 'direct_message',
+        title: 'New private message',
+        body: `${sender?.full_name || 'A teammate'}: ${content.trim().slice(0, 180)}`,
+        href: '/dashboard/chat',
+        entityType: 'direct_message',
+        entityId: message.id,
+        eventKey: `direct-message:${message.id}`,
+      });
+    } catch (notificationError) {
+      console.error('Unable to create direct message notification:', notificationError);
+    }
     const scopeKey = `direct:${conversation.id}`;
     const { data: queuedReminder, error: reminderError } = await admin.from('chat_email_notifications').upsert({
       recipient_id: recipientId,

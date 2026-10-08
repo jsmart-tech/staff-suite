@@ -47,6 +47,12 @@ export default function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const hash   = window.location.hash;
+    const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
+    const isRecovery = params.get('type') === 'recovery' || hashParams.get('type') === 'recovery';
+    if (isRecovery && hash.includes('access_token')) {
+      router.replace(`/reset-password${hash}`);
+      return;
+    }
     if (params.get('type') === 'invite' && hash.includes('access_token')) {
       router.replace('/accept-invite');
     }
@@ -99,7 +105,7 @@ export default function LoginPage() {
     setError('');
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${(process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(/\/$/, '')}/auth/callback?next=${encodeURIComponent('/accept-invite?mode=recovery')}`,
+        redirectTo: `${(process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(/\/$/, '')}/reset-password`,
       });
       if (error) throw error;
       setError('✓ If an account exists for this email, a password reset link has been sent.');

@@ -39,6 +39,21 @@ export interface Task {
   profiles?: Pick<Profile, 'full_name' | 'avatar_url' | 'department'>;
 }
 
+export interface AppNotification {
+  id: string;
+  recipient_id: string;
+  actor_id: string | null;
+  type: string;
+  title: string;
+  body: string;
+  href: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  event_key: string;
+  read_at: string | null;
+  created_at: string;
+}
+
 export interface ChatMessage {
   id: string;
   sender_id: string;

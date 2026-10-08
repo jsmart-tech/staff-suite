@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+@media (max-width: 640px) {
+  main section a img {
+    width: auto;
+    max-width: min(100%, 20rem);
+    max-height: 16rem;
+    object-fit: contain;
+  }
+}
+
 /* =====================================================
    STAFFSUITE DESIGN TOKENS
    ===================================================== */

@@ -1,35 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Receiver } from '@upstash/qstash';
+import { verifySignatureAppRouter } from '@upstash/qstash/nextjs';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendNotificationEmails, getSiteUrl } from '@/lib/email';
 
 export const runtime = 'nodejs';
 
-export async function POST(request: NextRequest) {
-  const currentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
-  const nextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
-  const signature = request.headers.get('upstash-signature');
-  const body = await request.text();
-  if (!currentSigningKey || !nextSigningKey) {
-    return NextResponse.json({ error: 'QStash signature verification is not configured.' }, { status: 503 });
-  }
-  if (!signature) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const receiver = new Receiver({ currentSigningKey, nextSigningKey });
-  try {
-    await receiver.verify({ signature, body, url: request.url });
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  let notificationId: string | undefined;
-  try {
-    ({ notificationId } = JSON.parse(body));
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
-  }
+async function handler(request: NextRequest) {
+  const { notificationId } = await request.json().catch(() => ({})) as { notificationId?: string };
   if (!notificationId) return NextResponse.json({ error: 'notificationId is required.' }, { status: 400 });
 
   const admin = createAdminClient();
@@ -54,3 +31,5 @@ export async function POST(request: NextRequest) {
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
   return NextResponse.json({ processed: 1 });
 }
+
+export const POST = verifySignatureAppRouter(handler);
