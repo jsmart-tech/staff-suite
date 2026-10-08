@@ -30,7 +30,6 @@ const navItems: NavItem[] = [
   { href: '/dashboard/admin/tasks', label: 'All Tasks', icon: CheckSquare, roles: ['admin'] },
   { href: '/dashboard/employee/tasks', label: 'My Tasks', icon: CheckSquare, roles: ['admin'] },
   { href: '/dashboard/admin/logs', label: 'Audit Logs', icon: FileText, roles: ['admin'] },
-  { href: '/dashboard/admin/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
   // Accountant
   { href: '/dashboard/accountant/payroll', label: 'Payroll', icon: DollarSign, roles: ['accountant'] },
   { href: '/dashboard/accountant/hours', label: 'Hours Report', icon: Clock, roles: ['accountant'] },
@@ -221,12 +220,24 @@ export function Sidebar({ profile }: { profile: Profile }) {
           );
         })}
         <div className="mt-1 rounded-xl px-3 py-2.5 text-sm font-medium">
-          <NotificationCenter userId={profile.id} label={collapsed ? undefined : 'Notifications'} openPage />
+          <NotificationCenter userId={profile.id} label={collapsed ? undefined : 'Notifications'} openPage onNavigate={() => setMobileOpen(false)} />
         </div>
       </nav>
 
       {/* Profile + Sign Out */}
       <div className="p-3 border-t border-[var(--border)]">
+        {profile.role === 'admin' && (
+          <Link
+            href="/dashboard/admin/settings"
+            onClick={() => setMobileOpen(false)}
+            className="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-white"
+          >
+            <Settings size={16} className="flex-shrink-0" />
+            <AnimatePresence>
+              {!collapsed && <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">Settings</motion.span>}
+            </AnimatePresence>
+          </Link>
+        )}
         <div className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1',
           'bg-[var(--bg-hover)]')}>
           <div className="relative w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden text-xs font-bold"
