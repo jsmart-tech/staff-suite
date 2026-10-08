@@ -66,6 +66,17 @@ export default function ChatPage() {
     return () => window.clearInterval(timer);
   }, [loadUnread]);
 
+  // Some older chat records contain avatar URLs that no longer resolve.
+  // Hide only the failed image so the avatar background remains clean.
+  useEffect(() => {
+    const hideFailedImage = (event: Event) => {
+      const target = event.target;
+      if (target instanceof HTMLImageElement) target.style.display = 'none';
+    };
+    window.addEventListener('error', hideFailedImage, true);
+    return () => window.removeEventListener('error', hideFailedImage, true);
+  }, []);
+
   useEffect(() => {
     if (!profile) return;
     const load = async (reset = false) => {
