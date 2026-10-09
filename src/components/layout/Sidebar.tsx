@@ -13,7 +13,6 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
 import { cn, getInitials, getRoleBadgeColor } from '@/lib/utils';
-import { NotificationCenter } from './NotificationCenter';
 
 interface NavItem {
   href: string;
@@ -219,9 +218,19 @@ export function Sidebar({ profile }: { profile: Profile }) {
             </div>
           );
         })}
-        <div className="mt-1 text-sm font-medium">
-          <NotificationCenter userId={profile.id} label={collapsed ? undefined : 'Notifications'} openPage active={pathname === '/dashboard/notifications'} onNavigate={() => setMobileOpen(false)} />
-        </div>
+        <Link
+          href="/dashboard/notifications"
+          onClick={() => setMobileOpen(false)}
+          className={cn(
+            'mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+            pathname === '/dashboard/notifications'
+              ? 'bg-[rgba(124,91,246,0.12)] text-white'
+              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-white'
+          )}
+        >
+          <Bell size={18} className="flex-shrink-0" />
+          {!collapsed && <span className="whitespace-nowrap">Notifications</span>}
+        </Link>
       </nav>
 
       {/* Profile + Sign Out */}
