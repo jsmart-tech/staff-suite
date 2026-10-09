@@ -235,7 +235,6 @@ export default function AdminTasksPage() {
                             </p>
                           )}
                         </td>
-                        <td><button type="button" onClick={() => void openTask(task)} className="btn-secondary flex items-center gap-1 px-3 py-1.5 text-xs"><Eye size={14} /> View Task</button></td>
                         <td>
                           <div className="flex items-center gap-2">
                             <div className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden text-[10px] font-bold"
@@ -271,6 +270,11 @@ export default function AdminTasksPage() {
                           ) : (
                             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>
                           )}
+                        </td>
+                        <td>
+                          <button type="button" onClick={() => void openTask(task)} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition-colors hover:brightness-110" style={{ background: '#7c5bf6' }}>
+                            <Eye size={14} /> View Task
+                          </button>
                         </td>
                       </tr>
                     );
