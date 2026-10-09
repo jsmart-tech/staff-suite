@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotifications } from '@/lib/notifications';
@@ -32,6 +32,9 @@ export async function POST(request: Request, context: { params: Promise<{ taskId
   const recipients = caller?.role === 'admin' ? [task.user_id] : (admins || []).map(item => item.id);
   await createNotifications({ actorId: user.id, recipientIds: recipients, type: 'task_comment', title: `${caller?.role === 'admin' ? 'Admin commented' : 'User replied'} on your task: ${task.title}`, body: body.trim(), href: '/dashboard/notifications', entityType: 'task', entityId: task.id, eventKey: `task-comment:${comment.id}` });
   const emails = caller?.role === 'admin' ? (await admin.from('profiles').select('email').eq('id', task.user_id).single()).data?.email : (admins || []).map(item => item.email).filter(Boolean);
-  for (const email of (Array.isArray(emails) ? emails : emails ? [emails] : [])) await sendNotificationEmail({ to: email as string, subject: `New comment on your task: ${task.title}`, heading: 'New task comment', body: `${caller?.full_name || 'A team member'} commented on “${task.title}”:\n\n${body.trim()}`, actionUrl: `${getSiteUrl()}/dashboard/notifications`, actionLabel: 'View notification' });
+  const emailList = (Array.isArray(emails) ? emails : emails ? [emails] : []) as string[];
+  after(async () => {
+    for (const email of emailList) await sendNotificationEmail({ to: email, subject: `New comment on your task: ${task.title}`, heading: 'New task comment', body: `${caller?.full_name || 'A team member'} commented on “${task.title}”:\n\n${body.trim()}`, actionUrl: `${getSiteUrl()}/dashboard/notifications`, actionLabel: 'View notification' });
+  });
   return NextResponse.json({ comment }, { status: 201 });
 }
