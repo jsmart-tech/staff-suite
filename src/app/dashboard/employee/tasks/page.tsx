@@ -222,7 +222,7 @@ export default function EmployeeTasksPage() {
 
   return (
     <div>
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-start justify-between mb-8 gap-4 flex-wrap" style={{ marginBottom: 'var(--section-gap)' }}>
+      <motion.div initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between" style={{ marginBottom: 'var(--section-gap)' }}>
         <div>
           <h1 className="page-title">My Tasks</h1>
           <p className="page-subtitle">
@@ -231,7 +231,7 @@ export default function EmployeeTasksPage() {
         </div>
         <button
           onClick={() => { setShowForm(true); setEditId(null); setForm(defaultForm); }}
-          className="btn-primary"
+          className="btn-primary self-start"
         >
           <Plus size={16} /> New Task
         </button>
