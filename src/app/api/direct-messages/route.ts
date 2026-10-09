@@ -10,8 +10,8 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { recipientId, content, attachmentUrl, attachmentName, clientMessageId } = await request.json();
-    if (!recipientId || recipientId === user.id || typeof content !== 'string' || !content.trim()) return NextResponse.json({ error: 'Choose another staff member and enter a message.' }, { status: 400 });
-    if (content.trim().length > 5000) return NextResponse.json({ error: 'Messages are limited to 5,000 characters.' }, { status: 400 });
+    if (!recipientId || recipientId === user.id || (typeof content !== 'string' && !attachmentUrl) || (!content?.trim() && !attachmentUrl)) return NextResponse.json({ error: 'Choose another staff member and enter a message or attachment.' }, { status: 400 });
+    if ((content || '').trim().length > 5000) return NextResponse.json({ error: 'Messages are limited to 5,000 characters.' }, { status: 400 });
 
     const admin = createAdminClient();
     const { data: recipient } = await admin.from('profiles').select('email, full_name').eq('id', recipientId).single();
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const inserted = await admin.from('direct_messages').insert({
       conversation_id: conversation.id,
       sender_id: user.id,
-      content: content.trim(),
+      content: (content || '').trim(),
       attachment_url: attachmentUrl || null,
       attachment_name: attachmentName || null,
       client_message_id: clientMessageIdValue,
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         recipientIds: [recipientId],
         type: 'direct_message',
         title: 'New private message',
-        body: `${sender?.full_name || 'A teammate'}: ${content.trim().slice(0, 180)}`,
+        body: `${sender?.full_name || 'A teammate'}: ${(content || attachmentName || 'sent an attachment').trim().slice(0, 180)}`,
         href: '/dashboard/chat',
         entityType: 'direct_message',
         entityId: message.id,
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       message_type: 'direct',
       conversation_id: conversation.id,
       sender_name: sender?.full_name || 'A teammate',
-      message_preview: content.trim(),
+      message_preview: (content || attachmentName || 'sent an attachment').trim(),
       due_at: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
       seen_at: null,
       sent_at: null,

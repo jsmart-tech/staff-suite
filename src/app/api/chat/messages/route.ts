@@ -12,15 +12,15 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { content, channel, attachmentUrl, attachmentName, clientMessageId } = await request.json();
-    if (!channels.has(channel) || !content?.trim()) return NextResponse.json({ error: 'A valid channel and message are required.' }, { status: 400 });
-    if (content.trim().length > 5000) return NextResponse.json({ error: 'Messages are limited to 5,000 characters.' }, { status: 400 });
+    if (!channels.has(channel) || (!content?.trim() && !attachmentUrl)) return NextResponse.json({ error: 'A valid channel message or attachment is required.' }, { status: 400 });
+    if ((content || '').trim().length > 5000) return NextResponse.json({ error: 'Messages are limited to 5,000 characters.' }, { status: 400 });
 
     const admin = createAdminClient();
     const { data: sender } = await admin.from('profiles').select('full_name').eq('id', user.id).single();
     const clientMessageIdValue = typeof clientMessageId === 'string' ? clientMessageId : null;
     const inserted = await admin.from('chat_messages').insert({
       sender_id: user.id,
-      content: content.trim(),
+      content: (content || '').trim(),
       channel,
       attachment_url: attachmentUrl || null,
       attachment_name: attachmentName || null,
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         recipientIds: (recipients || []).map(recipient => recipient.id),
         type: 'channel_message',
         title: `New message in #${channel}`,
-        body: `${sender?.full_name || 'A teammate'}: ${content.trim().slice(0, 180)}`,
+        body: `${sender?.full_name || 'A teammate'}: ${(content || attachmentName || 'sent an attachment').trim().slice(0, 180)}`,
         href: '/dashboard/chat',
         entityType: 'chat_message',
         entityId: message.id,
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       message_type: 'channel',
       channel,
       sender_name: sender?.full_name || 'A teammate',
-      message_preview: content.trim(),
+      message_preview: (content || attachmentName || 'sent an attachment').trim(),
       due_at: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
       seen_at: null,
       sent_at: null,
