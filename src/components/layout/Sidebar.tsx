@@ -48,9 +48,21 @@ export function Sidebar({ profile }: { profile: Profile }) {
   const [hasNewChat, setHasNewChat] = useState(false);
   const [hasNewTask, setHasNewTask] = useState(false);
   const [notice, setNotice] = useState<{ title: string; body: string; href: string } | null>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const supabase = createClient();
 
   const filteredNav = navItems.filter(item => item.roles.includes(profile.role));
+
+  useEffect(() => {
+    const loadNotifications = async () => {
+      const response = await fetch('/api/notifications');
+      if (response.ok) {
+        const result = await response.json();
+        setUnreadNotifications((result.notifications || []).filter((item: { read_at: string | null }) => !item.read_at).length);
+      }
+    };
+    void loadNotifications();
+  }, [pathname, profile.id]);
 
   useEffect(() => {
     const chatKey = `staff-suite:chat-seen:${profile.id}`;
@@ -230,6 +242,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
         >
           <Bell size={18} className="flex-shrink-0" />
           {!collapsed && <span className="whitespace-nowrap">Notifications</span>}
+          {!collapsed && unreadNotifications > 0 && <span className="ml-auto rounded-full bg-[var(--accent-rose)] px-2 py-0.5 text-[10px] font-bold text-white">{unreadNotifications > 9 ? '9+' : unreadNotifications}</span>}
         </Link>
       </nav>
 
