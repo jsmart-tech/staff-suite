@@ -39,6 +39,31 @@ ALTER TABLE public.direct_messages ADD COLUMN IF NOT EXISTS client_message_id uu
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS invitation_accepted boolean NOT NULL DEFAULT true;
 
+CREATE TABLE IF NOT EXISTS public.task_comments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id uuid NOT NULL REFERENCES public.tasks(id) ON DELETE CASCADE,
+  author_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  body text NOT NULL CHECK (length(trim(body)) > 0),
+  created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS task_comments_task_created_idx
+  ON public.task_comments (task_id, created_at DESC);
+
+ALTER TABLE public.task_comments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Staff can read task comments" ON public.task_comments;
+CREATE POLICY "Staff can read task comments" ON public.task_comments FOR SELECT
+  USING (
+    author_id = auth.uid()
+    OR EXISTS (SELECT 1 FROM public.tasks t WHERE t.id = task_id AND t.user_id = auth.uid())
+    OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Admins can create task comments" ON public.task_comments;
+CREATE POLICY "Admins can create task comments" ON public.task_comments FOR INSERT
+  WITH CHECK (author_id = auth.uid() AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+
 UPDATE public.profiles p
 SET invitation_accepted = false
 FROM auth.users u

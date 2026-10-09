@@ -8,6 +8,7 @@ import { getInitials, getStatusColor } from '@/lib/utils';
 import {
   Search, CheckSquare, Clock, AlertCircle,
   Plus, X, Loader2, User,
+  Eye, MessageSquare,
 } from 'lucide-react';
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
@@ -49,6 +50,10 @@ export default function AdminTasksPage() {
   const [form,         setForm]         = useState<AssignForm>(defaultForm);
   const [saving,       setSaving]       = useState(false);
   const [saveError,    setSaveError]    = useState('');
+  const [viewTask, setViewTask] = useState<typeof tasks[number] | null>(null);
+  const [comment, setComment] = useState('');
+  const [commentSaving, setCommentSaving] = useState(false);
+  const [comments, setComments] = useState<Array<{ id: string; body: string; created_at: string; profiles?: { full_name: string | null } }>>([]);
   const supabase = createClient();
 
   /* ── Load tasks + staff list ── */
@@ -124,6 +129,20 @@ export default function AdminTasksPage() {
     fetchTasks(); // refresh list
   };
 
+  const openTask = async (task: typeof tasks[number]) => {
+    setViewTask(task); setComment('');
+    const response = await fetch(`/api/tasks/${task.id}/comments`);
+    if (response.ok) setComments((await response.json()).comments || []);
+  };
+
+  const addComment = async () => {
+    if (!viewTask || !comment.trim()) return;
+    setCommentSaving(true);
+    const response = await fetch(`/api/tasks/${viewTask.id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: comment }) });
+    if (response.ok) { setComment(''); await openTask(viewTask); }
+    setCommentSaving(false);
+  };
+
   return (
     <div>
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="page-header flex items-start justify-between gap-4">
@@ -194,12 +213,13 @@ export default function AdminTasksPage() {
                 <th>Hours</th>
                 <th>Date Worked</th>
                 <th>Timer</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {loading
                 ? Array.from({ length: 6 }).map((_, i) => (
-                    <tr key={i}>{Array.from({ length: 7 }).map((_, j) => (
+                    <tr key={i}>{Array.from({ length: 8 }).map((_, j) => (
                       <td key={j}><div className="skeleton h-4 rounded" /></td>
                     ))}</tr>
                   ))
@@ -215,6 +235,7 @@ export default function AdminTasksPage() {
                             </p>
                           )}
                         </td>
+                        <td><button type="button" onClick={() => void openTask(task)} className="btn-secondary flex items-center gap-1 px-3 py-1.5 text-xs"><Eye size={14} /> View Task</button></td>
                         <td>
                           <div className="flex items-center gap-2">
                             <div className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden text-[10px] font-bold"
@@ -257,7 +278,7 @@ export default function AdminTasksPage() {
               }
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
+                  <td colSpan={8} className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
                     <CheckSquare size={32} className="mx-auto mb-2 opacity-30" />
                     <p>No tasks found</p>
                   </td>
@@ -270,6 +291,18 @@ export default function AdminTasksPage() {
 
       {/* ── Assign Task Modal ── */}
       <AnimatePresence>
+        {viewTask && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={e => { if (e.target === e.currentTarget) setViewTask(null); }}>
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--border-bright)] bg-[var(--bg-card)] p-6">
+              <div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-widest text-[var(--text-muted)]">Task details</p><h2 className="mt-1 text-xl font-bold">{viewTask.title}</h2></div><button type="button" onClick={() => setViewTask(null)}><X size={18} /></button></div>
+              <p className="mt-4 whitespace-pre-wrap text-sm text-[var(--text-secondary)]">{viewTask.description || 'No description provided.'}</p>
+              <div className="mt-6 border-t border-[var(--border)] pt-5"><h3 className="flex items-center gap-2 font-semibold"><MessageSquare size={16} /> Comments</h3>
+                <div className="mt-3 space-y-3">{comments.length ? comments.map(item => <div key={item.id} className="rounded-xl bg-[var(--bg-hover)] p-3"><p className="text-xs font-semibold">{item.profiles?.full_name || 'Admin'}</p><p className="mt-1 whitespace-pre-wrap text-sm">{item.body}</p><p className="mt-1 text-[11px] text-[var(--text-muted)]">{new Date(item.created_at).toLocaleString()}</p></div>) : <p className="text-sm text-[var(--text-muted)]">No comments yet.</p>}</div>
+                <div className="mt-4 flex gap-2"><textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Write a comment for the assigned user..." className="input-field min-h-20 flex-1 resize-y" /><button type="button" onClick={() => void addComment()} disabled={commentSaving || !comment.trim()} className="btn-primary self-end">{commentSaving ? <Loader2 size={16} className="animate-spin" /> : 'Comment'}</button></div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
         {showModal && (
           <motion.div
             initial={{ opacity: 0 }}
