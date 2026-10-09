@@ -85,7 +85,12 @@ export default function ChatPage() {
       if (active.kind === 'channel') {
         const { data, error: loadError } = await supabase.from('chat_messages').select('*, profiles(full_name, avatar_url, role)').eq('channel', active.id).order('created_at').limit(100);
         if (loadError) setError(loadError.message);
-        setMessages(Array.from(new Map((data || []).map(message => [message.id, message])).values()) as Message[]);
+        setMessages(previous => {
+          const persisted = Array.from(new Map((data || []).map(message => [message.id, message])).values()) as Message[];
+          if (reset) return persisted;
+          const pending = previous.filter(message => message.id.startsWith('pending-'));
+          return [...persisted, ...pending].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        });
         if (reset) {
           markAsRead('channel', active.id);
           setUnreadScopes(current => current.filter(scope => scope !== `channel:${active.id}`));
@@ -100,7 +105,12 @@ export default function ChatPage() {
           return;
         }
         const { data } = await supabase.from('direct_messages').select('*, profiles(full_name, avatar_url, role)').eq('conversation_id', conversation.id).order('created_at').limit(100);
-        setMessages(Array.from(new Map((data || []).map(message => [message.id, message])).values()) as Message[]);
+        setMessages(previous => {
+          const persisted = Array.from(new Map((data || []).map(message => [message.id, message])).values()) as Message[];
+          if (reset) return persisted;
+          const pending = previous.filter(message => message.id.startsWith('pending-'));
+          return [...persisted, ...pending].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        });
         if (reset) markAsRead('direct', conversation.id);
         if (reset) setUnreadDirectIds(current => current.filter(id => id !== active.id));
       }
