@@ -9,7 +9,11 @@ export async function GET(_request: Request, context: { params: Promise<{ taskId
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { taskId } = await context.params;
-  const { data, error } = await supabase.from('task_comments').select('*, profiles(full_name, role)').eq('task_id', taskId).order('created_at', { ascending: true });
+  const admin = createAdminClient();
+  const { data: task } = await admin.from('tasks').select('user_id').eq('id', taskId).single();
+  const { data: caller } = await admin.from('profiles').select('role').eq('id', user.id).single();
+  if (!task || (task.user_id !== user.id && caller?.role !== 'admin')) return NextResponse.json({ error: 'You cannot view these comments.' }, { status: 403 });
+  const { data, error } = await admin.from('task_comments').select('*, profiles(full_name, role)').eq('task_id', taskId).order('created_at', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ comments: data || [] });
 }
