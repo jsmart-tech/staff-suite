@@ -212,14 +212,13 @@ export default function AdminTasksPage() {
                 <th>Status</th>
                 <th>Hours</th>
                 <th>Date Worked</th>
-                <th>Timer</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {loading
                 ? Array.from({ length: 6 }).map((_, i) => (
-                    <tr key={i}>{Array.from({ length: 8 }).map((_, j) => (
+                    <tr key={i}>{Array.from({ length: 7 }).map((_, j) => (
                       <td key={j}><div className="skeleton h-4 rounded" /></td>
                     ))}</tr>
                   ))
@@ -262,17 +261,7 @@ export default function AdminTasksPage() {
                           </span>
                         </td>
                         <td>
-                          {task.is_timer_running ? (
-                            <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--accent-emerald)' }}>
-                              <span className="w-2 h-2 rounded-full" style={{ background: 'var(--accent-emerald)' }} />
-                              Live
-                            </span>
-                          ) : (
-                            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>
-                          )}
-                        </td>
-                        <td>
-                          <button type="button" onClick={() => void openTask(task)} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition-colors hover:brightness-110" style={{ background: '#7c5bf6' }}>
+                          <button type="button" onClick={() => void openTask(task)} className="flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition-colors hover:brightness-110" style={{ background: '#7c5bf6' }}>
                             <Eye size={14} /> View Task
                           </button>
                         </td>
@@ -282,7 +271,7 @@ export default function AdminTasksPage() {
               }
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
+                  <td colSpan={7} className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
                     <CheckSquare size={32} className="mx-auto mb-2 opacity-30" />
                     <p>No tasks found</p>
                   </td>
