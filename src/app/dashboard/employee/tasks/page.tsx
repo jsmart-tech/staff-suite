@@ -8,6 +8,7 @@ import { getStatusColor } from '@/lib/utils';
 import {
   Plus, Play, Square, CheckCircle, Clock, AlertCircle,
   Trash2, Edit2, X, Loader2, Calendar,
+  MessageSquare,
 } from 'lucide-react';
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
@@ -51,6 +52,9 @@ export default function EmployeeTasksPage() {
   const [filter, setFilter] = useState<string>('all');
   const [liveTimers, setLiveTimers] = useState<Record<string, number>>({});
   const [userId, setUserId] = useState<string>('');
+  const [viewTask, setViewTask] = useState<Task | null>(null);
+  const [comments, setComments] = useState<Array<{ id: string; body: string; created_at: string; profiles?: { full_name: string | null } }>>([]);
+  const [comment, setComment] = useState('');
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const supabase = createClient();
 
@@ -143,6 +147,18 @@ export default function EmployeeTasksPage() {
       hours_spent: newHours,
     });
     await fetchTasks();
+  };
+
+  const openTaskComments = async (task: Task) => {
+    setViewTask(task); setComment('');
+    const response = await fetch(`/api/tasks/${task.id}/comments`);
+    if (response.ok) setComments((await response.json()).comments || []);
+  };
+
+  const sendComment = async () => {
+    if (!viewTask || !comment.trim()) return;
+    const response = await fetch(`/api/tasks/${viewTask.id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: comment }) });
+    if (response.ok) { setComment(''); await openTaskComments(viewTask); }
   };
 
   const handleSave = async () => {
@@ -357,6 +373,7 @@ export default function EmployeeTasksPage() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-1 flex-shrink-0">
+                        <button type="button" onClick={() => void openTaskComments(task)} className="p-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors" style={{ color: 'var(--accent-violet)' }} title="View comments"><MessageSquare size={14} /></button>
                         {/* Timer button */}
                         {task.status !== 'completed' && (
                           <button
@@ -487,6 +504,21 @@ export default function EmployeeTasksPage() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {viewTask && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={e => { if (e.target === e.currentTarget) setViewTask(null); }}>
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--border-bright)] bg-[var(--bg-card)] p-6">
+              <div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-widest text-[var(--text-muted)]">Task details</p><h2 className="mt-1 text-xl font-bold">{viewTask.title}</h2></div><button type="button" onClick={() => setViewTask(null)}><X size={18} /></button></div>
+              <p className="mt-4 whitespace-pre-wrap text-sm text-[var(--text-secondary)]">{viewTask.description || 'No description provided.'}</p>
+              <div className="mt-6 border-t border-[var(--border)] pt-5"><h3 className="flex items-center gap-2 font-semibold"><MessageSquare size={16} /> Comments</h3>
+                <div className="mt-3 space-y-3">{comments.length ? comments.map(item => <div key={item.id} className="rounded-xl bg-[var(--bg-hover)] p-3"><p className="text-xs font-semibold">{item.profiles?.full_name || 'Team member'}</p><p className="mt-1 whitespace-pre-wrap text-sm">{item.body}</p><p className="mt-1 text-[11px] text-[var(--text-muted)]">{new Date(item.created_at).toLocaleString()}</p></div>) : <p className="text-sm text-[var(--text-muted)]">No comments yet.</p>}</div>
+                <div className="mt-4 flex gap-2"><textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Write a reply..." className="input-field min-h-20 flex-1 resize-y" /><button type="button" onClick={() => void sendComment()} disabled={!comment.trim()} className="btn-primary self-end">Reply</button></div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
