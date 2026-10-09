@@ -319,6 +319,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
       {/* Mobile toggle button */}
       <button
+        type="button"
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-3 right-3 z-50 w-10 h-10 rounded-xl flex items-center justify-center glass-bright"
       >
@@ -345,6 +346,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
               style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}
             >
               <button
+                type="button"
                 onClick={() => setMobileOpen(false)}
                 className="absolute top-4 right-4 w-8 h-8 rounded-lg flex items-center justify-center"
                 style={{ color: 'var(--text-muted)' }}
