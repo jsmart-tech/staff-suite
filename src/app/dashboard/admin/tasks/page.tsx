@@ -261,7 +261,7 @@ export default function AdminTasksPage() {
                           </span>
                         </td>
                         <td>
-                          <button type="button" onClick={() => void openTask(task)} className="flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition-colors hover:brightness-110" style={{ background: '#7c5bf6' }}>
+                          <button type="button" onClick={() => void openTask(task)} className="btn-primary whitespace-nowrap px-3 py-1.5 text-xs">
                             <Eye size={14} /> View Task
                           </button>
                         </td>
