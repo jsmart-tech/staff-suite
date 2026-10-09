@@ -46,6 +46,14 @@ export default function ChatPage() {
     }
   }, []);
 
+  const hydrateSenderProfiles = useCallback(async (records: Message[]) => {
+    const missingIds = [...new Set(records.filter(message => !message.profiles?.full_name).map(message => message.sender_id))];
+    if (!missingIds.length) return records;
+    const { data: directory } = await supabase.from('staff_directory').select('id, full_name, avatar_url, role').in('id', missingIds);
+    const profiles = new Map((directory || []).map(profile => [profile.id, { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role }]));
+    return records.map(message => message.profiles?.full_name ? message : { ...message, profiles: profiles.get(message.sender_id) || message.profiles });
+  }, [supabase]);
+
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -85,8 +93,9 @@ export default function ChatPage() {
       if (active.kind === 'channel') {
         const { data, error: loadError } = await supabase.from('chat_messages').select('*, profiles(full_name, avatar_url, role)').eq('channel', active.id).order('created_at').limit(100);
         if (loadError) setError(loadError.message);
+        const hydrated = await hydrateSenderProfiles((data || []) as Message[]);
         setMessages(previous => {
-          const persisted = Array.from(new Map((data || []).map(message => [message.id, message])).values()) as Message[];
+          const persisted = Array.from(new Map(hydrated.map(message => [message.id, message])).values());
           if (reset) return persisted;
           const pending = previous.filter(message => message.id.startsWith('pending-'));
           return [...persisted, ...pending].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -105,8 +114,9 @@ export default function ChatPage() {
           return;
         }
         const { data } = await supabase.from('direct_messages').select('*, profiles(full_name, avatar_url, role)').eq('conversation_id', conversation.id).order('created_at').limit(100);
+        const hydrated = await hydrateSenderProfiles((data || []) as Message[]);
         setMessages(previous => {
-          const persisted = Array.from(new Map((data || []).map(message => [message.id, message])).values()) as Message[];
+          const persisted = Array.from(new Map(hydrated.map(message => [message.id, message])).values());
           if (reset) return persisted;
           const pending = previous.filter(message => message.id.startsWith('pending-'));
           return [...persisted, ...pending].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -126,16 +136,19 @@ export default function ChatPage() {
     if (active.kind === 'direct' && !conversationId) return;
     const channel = supabase.channel(`chat-${active.kind}-${active.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table, filter }, async payload => {
       const { data } = await supabase.from(table).select('*, profiles(full_name, avatar_url, role)').eq('id', payload.new.id).single();
-      if (data) setMessages(previous => {
-        if (previous.some(message => message.id === data.id)) return previous;
-        const pendingIndex = previous.findIndex(message => message.id.startsWith('pending-') && message.sender_id === data.sender_id && message.content === data.content && (message.attachment_url || '') === (data.attachment_url || '') && (message.attachment_name || '') === (data.attachment_name || ''));
-        if (pendingIndex === -1) return [...previous, data as Message];
-        return previous.map((message, index) => index === pendingIndex ? data as Message : message);
-      });
+      if (data) {
+        const [hydrated] = await hydrateSenderProfiles([data as Message]);
+        setMessages(previous => {
+          if (previous.some(message => message.id === hydrated.id)) return previous;
+          const pendingIndex = previous.findIndex(message => message.id.startsWith('pending-') && message.sender_id === hydrated.sender_id && message.content === hydrated.content && (message.attachment_url || '') === (hydrated.attachment_url || '') && (message.attachment_name || '') === (hydrated.attachment_name || ''));
+          if (pendingIndex === -1) return [...previous, hydrated];
+          return previous.map((message, index) => index === pendingIndex ? hydrated : message);
+        });
+      }
       markAsRead(active.kind, active.kind === 'channel' ? active.id : conversationId!);
     }).subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [active, conversationId, markAsRead]);
+  }, [active, conversationId, markAsRead, hydrateSenderProfiles]);
 
   const send = async () => {
     if (sending || sendLockRef.current || (!content.trim() && !attachment)) return;
