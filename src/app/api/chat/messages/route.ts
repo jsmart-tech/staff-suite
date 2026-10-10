@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     const clientMessageIdValue = typeof clientMessageId === 'string' ? clientMessageId : null;
     const inserted = await admin.from('chat_messages').insert({
       sender_id: user.id,
-      content: (content || '').trim(),
+      content: (content || '').trim(),   // never embed attachment info in content
       channel,
       attachment_url: attachmentUrl || null,
       attachment_name: attachmentName || null,
@@ -43,12 +43,18 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const { data: recipients } = await admin.from('profiles').select('id, email').neq('id', user.id);
     try {
+      // Build a clean notification preview — never expose raw URLs or filenames
+      const preview = content?.trim()
+        ? content.trim().slice(0, 180)
+        : attachmentName
+        ? `📎 ${attachmentName.replace(/[-_]/g, ' ').split('.').slice(0, -1).join('.') || 'Attachment'}`
+        : '📎 Sent an attachment';
       await createNotifications({
         actorId: user.id,
         recipientIds: (recipients || []).map(recipient => recipient.id),
         type: 'channel_message',
         title: `New message in #${channel}`,
-        body: `${sender?.full_name || 'A teammate'}: ${(content || attachmentName || 'sent an attachment').trim().slice(0, 180)}`,
+        body: `${sender?.full_name || 'A teammate'}: ${preview}`,
         href: '/dashboard/chat',
         entityType: 'chat_message',
         entityId: message.id,
@@ -57,6 +63,7 @@ export async function POST(request: NextRequest) {
     } catch (notificationError) {
       console.error('Unable to create channel message notifications:', notificationError);
     }
+    const emailPreview = content?.trim() || (attachmentName ? `📎 ${attachmentName}` : 'Sent an attachment');
     const reminder = (recipients || []).map((recipient) => ({
       recipient_id: recipient.id,
       recipient_email: recipient.email,
@@ -64,7 +71,7 @@ export async function POST(request: NextRequest) {
       message_type: 'channel',
       channel,
       sender_name: sender?.full_name || 'A teammate',
-      message_preview: (content || attachmentName || 'sent an attachment').trim(),
+      message_preview: emailPreview.trim(),
       due_at: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
       seen_at: null,
       sent_at: null,

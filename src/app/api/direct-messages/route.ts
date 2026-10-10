@@ -52,12 +52,18 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
     try {
+      // Build a clean notification preview — never expose raw URLs or filenames
+      const preview = content?.trim()
+        ? content.trim().slice(0, 180)
+        : attachmentName
+        ? `📎 ${attachmentName.replace(/[-_]/g, ' ').split('.').slice(0, -1).join('.') || 'Attachment'}`
+        : '📎 Sent an attachment';
       await createNotifications({
         actorId: user.id,
         recipientIds: [recipientId],
         type: 'direct_message',
         title: 'New private message',
-        body: `${sender?.full_name || 'A teammate'}: ${(content || attachmentName || 'sent an attachment').trim().slice(0, 180)}`,
+        body: `${sender?.full_name || 'A teammate'}: ${preview}`,
         href: '/dashboard/chat',
         entityType: 'direct_message',
         entityId: message.id,
@@ -67,6 +73,7 @@ export async function POST(request: NextRequest) {
       console.error('Unable to create direct message notification:', notificationError);
     }
     const scopeKey = `direct:${conversation.id}`;
+    const emailPreview = content?.trim() || (attachmentName ? `📎 ${attachmentName}` : 'Sent an attachment');
     const { data: queuedReminder, error: reminderError } = await admin.from('chat_email_notifications').upsert({
       recipient_id: recipientId,
       recipient_email: recipient.email,
@@ -74,7 +81,7 @@ export async function POST(request: NextRequest) {
       message_type: 'direct',
       conversation_id: conversation.id,
       sender_name: sender?.full_name || 'A teammate',
-      message_preview: (content || attachmentName || 'sent an attachment').trim(),
+      message_preview: emailPreview.trim(),
       due_at: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
       seen_at: null,
       sent_at: null,
