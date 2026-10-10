@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, UserRole } from '@/types';
-import { getInitials, getRoleBadgeColor, formatCurrency } from '@/lib/utils';
+import { getRoleBadgeColor, formatCurrency } from '@/lib/utils';
+import { Avatar } from '@/components/ui/Avatar';
 import {
   Search, Plus, Edit2, X, Loader2, Users,
   Mail, Phone, Building, DollarSign, UserCog, Send, Trash2,
@@ -245,10 +246,7 @@ export default function AdminStaffPage() {
                     <tr key={s.id}>
                       <td>
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 overflow-hidden"
-                            style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white' }}>
-                            {s.avatar_url ? <img src={s.avatar_url} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover" /> : getInitials(s.full_name)}
-                          </div>
+                          <Avatar src={s.avatar_url} name={s.full_name} size={36} />
                           <div>
                             <p className="font-medium text-sm">{s.full_name || 'Unnamed'}</p>
                             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.email}</p>

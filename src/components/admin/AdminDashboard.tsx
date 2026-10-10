@@ -2,7 +2,8 @@
 
 import { motion } from 'framer-motion';
 import { Profile } from '@/types';
-import { getInitials, getRoleBadgeColor, formatCurrency } from '@/lib/utils';
+import { getRoleBadgeColor, formatCurrency } from '@/lib/utils';
+import { Avatar } from '@/components/ui/Avatar';
 import {
   Users, CheckSquare, Clock, TrendingUp, Activity,
   ArrowUpRight, ArrowDownRight, Shield,
@@ -132,14 +133,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="page-header">
         <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 overflow-hidden"
-            style={{ background: 'linear-gradient(135deg, #7c5bf6, #5b3fd4)', color: 'white' }}
-          >
-            {profile.avatar_url
-              ? <img src={profile.avatar_url} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="h-full w-full object-cover" />
-              : getInitials(profile.full_name)}
-          </div>
+          <Avatar src={profile.avatar_url} name={profile.full_name} size={40} />
           <div>
             <h1 className="page-title">
               Welcome back, {profile.full_name?.split(' ')[0] || 'Admin'} 👋
@@ -211,14 +205,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
                 ))
               : recentStaff.map((s) => (
                   <div key={s.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--bg-hover)] transition-colors">
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 overflow-hidden"
-                      style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white' }}
-                    >
-                      {s.avatar_url
-                        ? <img src={s.avatar_url} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="h-full w-full object-cover" />
-                        : getInitials(s.full_name)}
-                    </div>
+                    <Avatar src={s.avatar_url} name={s.full_name} size={36} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{s.full_name || 'Unnamed'}</p>
                       <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{s.email}</p>

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
 import { formatCurrency, getInitials } from '@/lib/utils';
+import { Avatar } from '@/components/ui/Avatar';
 import { DollarSign, Download, Search, TrendingUp, Users, Clock } from 'lucide-react';
 
 interface PayrollRow {
@@ -159,10 +160,7 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
                       <tr key={row.user_id}>
                         <td>
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden text-xs font-bold"
-                              style={{ background: 'linear-gradient(135deg, #10d98a, #38bdf8)', color: 'white' }}>
-                              {row.avatar_url ? <img src={row.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(row.full_name)}
-                            </div>
+                          <Avatar src={row.avatar_url} name={row.full_name} size={32} />
                             <div>
                               <p className="font-medium text-sm">{row.full_name || 'Unnamed'}</p>
                               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.email}</p>

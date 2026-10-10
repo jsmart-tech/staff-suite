@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { LoginLog, Profile } from '@/types';
-import { getRoleBadgeColor, getInitials } from '@/lib/utils';
+import { getRoleBadgeColor } from '@/lib/utils';
+import { Avatar } from '@/components/ui/Avatar';
 import { Shield, Clock, Search, RefreshCw } from 'lucide-react';
 
 export default function AdminLogsPage() {
@@ -122,10 +123,11 @@ export default function AdminLogsPage() {
                       </td>
                       <td>
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden text-[10px] font-bold"
-                            style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white' }}>
-                            {log.profiles?.avatar_url ? <img src={log.profiles.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(log.profiles?.full_name)}
-                          </div>
+                          <Avatar
+                            src={log.profiles?.avatar_url}
+                            name={log.profiles?.full_name}
+                            size={28}
+                          />
                           <div>
                             <p className="text-sm font-medium">{log.profiles?.full_name || 'Unknown'}</p>
                             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{log.profiles?.email}</p>

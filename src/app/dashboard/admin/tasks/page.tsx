@@ -4,11 +4,14 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Task, Profile, TaskStatus } from '@/types';
-import { getInitials, getStatusColor } from '@/lib/utils';
+import { getStatusColor } from '@/lib/utils';
+import { Avatar } from '@/components/ui/Avatar';
+import { FocusTrap } from '@/components/ui/FocusTrap';
+import { TaskDetailPanel } from '@/components/admin/TaskDetailPanel';
 import {
   Search, CheckSquare, Clock, AlertCircle,
   Plus, X, Loader2, User,
-  Eye, MessageSquare,
+  Eye,
 } from 'lucide-react';
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
@@ -239,10 +242,11 @@ export default function AdminTasksPage() {
                         </td>
                         <td>
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden text-[10px] font-bold"
-                              style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white' }}>
-                              {task.profiles?.avatar_url ? <img src={task.profiles.avatar_url} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} className="h-full w-full object-cover" /> : getInitials(task.profiles?.full_name)}
-                            </div>
+                            <Avatar
+                              src={task.profiles?.avatar_url}
+                              name={task.profiles?.full_name}
+                              size={28}
+                            />
                             <span className="text-sm">{task.profiles?.full_name || 'Unknown'}</span>
                           </div>
                         </td>
@@ -285,37 +289,43 @@ export default function AdminTasksPage() {
         </div>
       </motion.div>
 
-      {/* ── Assign Task Modal ── */}
+      {/* ── Task Detail + Assign Task Modals ── */}
       <AnimatePresence>
         {viewTask && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={e => { if (e.target === e.currentTarget) setViewTask(null); }}>
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--border-bright)] bg-[var(--bg-card)] p-6">
-              <div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-widest text-[var(--text-muted)]">Task details</p><h2 className="mt-1 text-xl font-bold">{viewTask.title}</h2></div><button type="button" onClick={() => setViewTask(null)}><X size={18} /></button></div>
-              <p className="mt-4 whitespace-pre-wrap text-sm text-[var(--text-secondary)]">{viewTask.description || 'No description provided.'}</p>
-              <div className="mt-6 border-t border-[var(--border)] pt-5"><h3 className="flex items-center gap-2 font-semibold"><MessageSquare size={16} /> Comments</h3>
-                <div className="mt-3 space-y-3">{comments.length ? comments.map(item => <div key={item.id} className="rounded-xl bg-[var(--bg-hover)] p-3"><p className="text-xs font-semibold">{item.profiles?.full_name || 'Admin'}</p><p className="mt-1 whitespace-pre-wrap text-sm">{item.body}</p><p className="mt-1 text-[11px] text-[var(--text-muted)]">{new Date(item.created_at).toLocaleString()}</p></div>) : <p className="text-sm text-[var(--text-muted)]">No comments yet.</p>}</div>
-                <div className="mt-4 flex gap-2"><textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Write a comment for the assigned user..." className="input-field min-h-20 flex-1 resize-y" /><button type="button" onClick={() => void addComment()} disabled={commentSaving || !comment.trim()} className="btn-primary self-end">{commentSaving ? <Loader2 size={16} className="animate-spin" /> : 'Comment'}</button></div>
-              </div>
-            </motion.div>
-          </motion.div>
+          <TaskDetailPanel
+            task={viewTask}
+            comments={comments}
+            comment={comment}
+            commentSaving={commentSaving}
+            onCommentChange={setComment}
+            onAddComment={() => void addComment()}
+            onClose={() => setViewTask(null)}
+          />
         )}
         {showModal && (
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="assign-task-title"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-            onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 16 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-[480px] rounded-2xl p-6"
-              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)' }}
+              className="w-full max-w-[480px]"
             >
+              <FocusTrap
+                onEscape={() => setShowModal(false)}
+                className="rounded-2xl p-6"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)' }}
+              >
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -461,6 +471,7 @@ export default function AdminTasksPage() {
                   </button>
                 </div>
               </form>
+              </FocusTrap>
             </motion.div>
           </motion.div>
         )}

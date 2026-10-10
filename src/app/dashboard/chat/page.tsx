@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
 import { getInitials, getRoleBadgeColor } from '@/lib/utils';
+import { Avatar } from '@/components/ui/Avatar';
 import {
   ArrowLeft, Hash, MessageCircle, Send, Users,
   Paperclip, X, Image as ImageIcon, Video, FileText, Mic,
@@ -682,14 +683,7 @@ export default function ChatPage() {
                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
             }`}
           >
-            <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--accent-sky)] text-[10px] font-bold text-white">
-              {contact.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={contact.avatar_url} alt="" className="h-full w-full object-cover" />
-              ) : (
-                getInitials(contact.full_name)
-              )}
-            </span>
+            <Avatar src={contact.avatar_url} name={contact.full_name} size={24} />
             <span className="truncate">{contact.full_name || contact.email}</span>
             {unreadDirectIds.includes(contact.id) && (
               <span className="ml-auto badge px-1.5 py-0 text-[9px]">NEW</span>

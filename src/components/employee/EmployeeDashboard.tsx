@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, Task } from '@/types';
-import { getInitials, formatHours } from '@/lib/utils';
+import { formatHours } from '@/lib/utils';
+import { Avatar } from '@/components/ui/Avatar';
 import {
   CheckSquare, Clock, TrendingUp, Play, Pause,
   Plus, Target, Calendar, Zap,
@@ -71,10 +72,7 @@ export function EmployeeDashboard({ profile }: { profile: Profile }) {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="page-header">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden font-bold flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #7c5bf6, #38bdf8)', color: 'white', fontSize: '16px' }}>
-            {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(profile.full_name)}
-          </div>
+          <Avatar src={profile.avatar_url} name={profile.full_name} size={48} />
           <div>
             <h1 className="page-title">
               Hey, {profile.full_name?.split(' ')[0] || 'there'} 👋

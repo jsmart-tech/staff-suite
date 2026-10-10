@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, Task } from '@/types';
-import { formatCurrency, getInitials } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
+import { Avatar } from '@/components/ui/Avatar';
 import { Download, Search, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface HoursRow {
@@ -167,10 +168,7 @@ export default function AccountantHoursPage() {
                       <tr key={row.profile.id}>
                         <td className="sticky left-0" style={{ background: 'var(--bg-card)', zIndex: 1 }}>
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden text-[10px] font-bold"
-                              style={{ background: 'linear-gradient(135deg, #10d98a, #38bdf8)', color: 'white' }}>
-                              {row.profile.avatar_url ? <img src={row.profile.avatar_url} alt="" className="h-full w-full object-cover" /> : getInitials(row.profile.full_name)}
-                            </div>
+                            <Avatar src={row.profile.avatar_url} name={row.profile.full_name} size={28} />
                             <div>
                               <p className="font-medium text-sm">{row.profile.full_name || 'Unnamed'}</p>
                               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.profile.department || row.profile.email}</p>
