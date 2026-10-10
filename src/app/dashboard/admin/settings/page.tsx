@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { createClient } from '@/lib/supabase/client';
 import { Settings, Shield, Database, Save, Loader2, CheckCircle } from 'lucide-react';
 
 interface AppSettings {
@@ -30,36 +29,39 @@ export default function AdminSettingsPage() {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState('');
-  const supabase = createClient();
 
-  // Load existing settings from the database on mount
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase
-        .from('app_settings')
-        .select('*')
-        .eq('id', 1)
-        .maybeSingle();
-      if (data) {
-        setSettings((prev) => ({ ...prev, ...data }));
+      const response = await fetch('/api/settings');
+      if (response.ok) {
+        const { settings } = await response.json();
+        if (settings) setSettings((prev) => ({ ...prev, ...settings }));
       }
       setLoading(false);
     };
     void load();
-  }, [supabase]);
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
     setSaveError('');
-    const { error } = await supabase
-      .from('app_settings')
-      .upsert({ id: 1, ...settings }, { onConflict: 'id' });
-    setSaving(false);
-    if (error) {
-      setSaveError(error.message);
-    } else {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setSaveError(result.error || 'Failed to save settings.');
+      } else {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      }
+    } catch {
+      setSaveError('Network error. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 

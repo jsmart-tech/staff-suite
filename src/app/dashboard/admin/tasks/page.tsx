@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Task, Profile, TaskStatus } from '@/types';
@@ -54,31 +54,34 @@ export default function AdminTasksPage() {
   const [comment, setComment] = useState('');
   const [commentSaving, setCommentSaving] = useState(false);
   const [comments, setComments] = useState<Array<{ id: string; body: string; created_at: string; profiles?: { full_name: string | null } }>>([]);
-  const supabase = createClient();
+
+  // Memoized — never recreates the WebSocket connection on re-render
+  const supabase = useMemo(() => createClient(), []);
 
   /* ── Load tasks + staff list ── */
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     const { data } = await supabase
       .from('tasks')
       .select('*, profiles(full_name, avatar_url, department)')
       .order('created_at', { ascending: false });
     setTasks(data as typeof tasks || []);
     setLoading(false);
-  };
+  }, [supabase]);
+
+  const fetchStaff = useCallback(async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, role')
+      .in('role', ['admin', 'employee', 'accountant'])
+      .order('full_name');
+    setStaff(data || []);
+  }, [supabase]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void fetchTasks();
-      void supabase
-        .from('profiles')
-        .select('id, full_name, email, role')
-        .in('role', ['admin', 'employee', 'accountant'])
-        .order('full_name')
-        .then(({ data }) => setStaff(data || []));
-    }, 0);
-    const refresh = window.setInterval(() => { void fetchTasks(); }, 5000);
-    return () => { window.clearTimeout(timer); window.clearInterval(refresh); };
-  }, []);
+    void fetchTasks();
+    void fetchStaff();
+    // Realtime subscription keeps data live — no polling needed
+  }, [fetchTasks, fetchStaff]);
 
   /* ── Filter logic ── */
   const filtered = useMemo(() => {
@@ -94,7 +97,7 @@ export default function AdminTasksPage() {
       );
     }
     return result;
-  }, [search, statusFilter, tasks]);
+  }, [search, statusFilter, dateFilter, tasks]);
 
   const statusCounts = {
     all:         tasks.length,
@@ -126,7 +129,7 @@ export default function AdminTasksPage() {
 
     setShowModal(false);
     setForm(defaultForm);
-    fetchTasks(); // refresh list
+    await fetchTasks(); // refresh list
   };
 
   const openTask = async (task: typeof tasks[number]) => {

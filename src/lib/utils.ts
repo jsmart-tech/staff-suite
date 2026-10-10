@@ -5,10 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
+/**
+ * Format a monetary amount using the Internationalization API.
+ * @param amount   - Number to format
+ * @param currency - ISO 4217 currency code (default: 'NGN')
+ */
+export function formatCurrency(amount: number, currency = 'NGN'): string {
+  return new Intl.NumberFormat('en-NG', {
     style: 'currency',
-    currency: 'USD',
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
