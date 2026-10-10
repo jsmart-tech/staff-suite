@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
+
 import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
-import { getInitials, getRoleBadgeColor } from '@/lib/utils';
+import { getRoleBadgeColor } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import {
-  ArrowLeft, Hash, MessageCircle, Send, Users,
+  ArrowLeft, Hash, Send, Users,
   Paperclip, X, Image as ImageIcon, Video, FileText, Mic,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -51,20 +51,13 @@ function ChatBubble({
 
   return (
     <article className={`flex gap-3 ${own ? 'flex-row-reverse' : ''}`}>
-      {/* Avatar */}
-      <div className="relative mt-auto flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--accent-violet)] text-[10px] font-bold text-white">
-        {message.profiles?.avatar_url ? (
-          <Image
-            src={message.profiles.avatar_url}
-            alt=""
-            fill
-            sizes="32px"
-            className="object-cover"
-          />
-        ) : (
-          getInitials(message.profiles?.full_name)
-        )}
-      </div>
+      {/* Avatar — uses Avatar component so /api/files/ URLs send the session cookie */}
+      <Avatar
+        src={message.profiles?.avatar_url}
+        name={message.profiles?.full_name}
+        size={32}
+        className="mt-auto"
+      />
 
       {/* Bubble column */}
       <div className={`flex max-w-[82%] flex-col sm:max-w-[72%] ${own ? 'items-end' : 'items-start'}`}>
@@ -492,7 +485,12 @@ export default function ChatPage() {
       {active.kind === 'channel' ? (
         <Hash size={18} className="shrink-0 text-[var(--accent-violet)]" />
       ) : (
-        <MessageCircle size={18} className="shrink-0 text-[var(--accent-violet)]" />
+        <Avatar
+          src={contacts.find((c) => c.id === active.id)?.avatar_url}
+          name={active.label}
+          size={30}
+          className="shrink-0"
+        />
       )}
       <div className="min-w-0">
         <h2 className="truncate font-semibold">{active.label}</h2>
