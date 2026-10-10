@@ -30,6 +30,7 @@
   --accent-rose:       #f1958d;
 
   --section-gap: 32px;
+  --space-2: 8px;
   --space-6: 24px;
   --card-pad: 24px;
 }
@@ -44,7 +45,8 @@ html {
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Use next/font CSS variables when available, fall back gracefully */
+  font-family: var(--font-inter, 'Inter'), system-ui, -apple-system, sans-serif;
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;

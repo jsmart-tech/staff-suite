@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, Task } from '@/types';
@@ -19,7 +19,8 @@ export default function AccountantHoursPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
-  const supabase = createClient();
+  // Memoized — never recreates WebSocket on re-render
+  const supabase = useMemo(() => createClient(), []);
 
   const getWeekDays = (offset: number) => {
     const today = new Date();
@@ -34,26 +35,25 @@ export default function AccountantHoursPage() {
 
   const weekDays = getWeekDays(weekOffset);
 
-  useEffect(() => {
-    const fetch = async () => {
-      const { data: profiles } = await supabase.from('profiles').select('*').eq('role', 'employee');
-      const { data: tasks } = await supabase.from('tasks').select('*');
-      const result: HoursRow[] = (profiles || []).map((p: Profile) => {
-        const userTasks = (tasks || []).filter((t: Task) => t.user_id === p.id);
-        const totalHours = userTasks.reduce((s: number, t: Task) => s + t.hours_spent, 0);
-        const byDate: Record<string, number> = {};
-        userTasks.forEach((t: Task) => {
-          byDate[t.date_worked] = (byDate[t.date_worked] || 0) + t.hours_spent;
-        });
-        return { profile: p as Profile, tasks: userTasks as Task[], totalHours, byDate };
+  const fetchData = useCallback(async () => {
+    const { data: profiles } = await supabase.from('profiles').select('*').eq('role', 'employee');
+    const { data: tasks } = await supabase.from('tasks').select('*');
+    const result: HoursRow[] = (profiles || []).map((p: Profile) => {
+      const userTasks = (tasks || []).filter((t: Task) => t.user_id === p.id);
+      const totalHours = userTasks.reduce((s: number, t: Task) => s + t.hours_spent, 0);
+      const byDate: Record<string, number> = {};
+      userTasks.forEach((t: Task) => {
+        byDate[t.date_worked] = (byDate[t.date_worked] || 0) + t.hours_spent;
       });
-      setRows(result);
-      setLoading(false);
-    };
-    void fetch();
-    const refresh = window.setInterval(() => { void fetch(); }, 5000);
-    return () => window.clearInterval(refresh);
-  }, []);
+      return { profile: p as Profile, tasks: userTasks as Task[], totalHours, byDate };
+    });
+    setRows(result);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
 
   const filtered = useMemo(() => {
     if (!search) return rows;

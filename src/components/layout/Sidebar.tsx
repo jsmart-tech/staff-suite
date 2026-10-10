@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
@@ -49,7 +49,8 @@ export function Sidebar({ profile }: { profile: Profile }) {
   const [hasNewTask, setHasNewTask] = useState(false);
   const [notice, setNotice] = useState<{ title: string; body: string; href: string } | null>(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const supabase = createClient();
+  // Memoized — prevents new WebSocket connections on every render
+  const supabase = useMemo(() => createClient(), []);
 
   const filteredNav = navItems.filter(item => item.roles.includes(profile.role));
 

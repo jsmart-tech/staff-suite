@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { LoginLog, Profile } from '@/types';
@@ -12,9 +12,10 @@ export default function AdminLogsPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const supabase = createClient();
+  // Memoized — never recreates WebSocket on re-render
+  const supabase = useMemo(() => createClient(), []);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setRefreshing(true);
     const { data } = await supabase
       .from('login_logs')
@@ -24,12 +25,11 @@ export default function AdminLogsPage() {
     setLogs(data as typeof logs || []);
     setLoading(false);
     setRefreshing(false);
-  };
+  }, [supabase]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void fetchLogs(); }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
+    void fetchLogs();
+  }, [fetchLogs]);
 
   const filtered = useMemo(() => {
     if (!search) return logs;

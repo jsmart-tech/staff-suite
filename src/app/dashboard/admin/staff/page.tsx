@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, UserRole } from '@/types';
@@ -37,11 +37,18 @@ export default function AdminStaffPage() {
   const [inviteError, setInviteError] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Confirm-delete modal state (replaces window.confirm)
+  const [confirmDelete, setConfirmDelete] = useState<Profile | null>(null);
 
-  const supabase = createClient();
+  // Memoized — never recreates the WebSocket connection on re-render
+  const supabase = useMemo(() => createClient(), []);
 
-  const fetchStaff = async () => {
-    const { data, error: fetchError } = await supabase.from('profiles').select('*').eq('invitation_accepted', true).order('created_at', { ascending: false });
+  const fetchStaff = useCallback(async () => {
+    const { data, error: fetchError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('invitation_accepted', true)
+      .order('created_at', { ascending: false });
     if (fetchError) {
       setError(fetchError.message);
       setLoading(false);
@@ -49,12 +56,11 @@ export default function AdminStaffPage() {
     }
     setStaff(data as Profile[] || []);
     setLoading(false);
-  };
+  }, [supabase]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void fetchStaff(); }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
+    void fetchStaff();
+  }, [fetchStaff]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -127,11 +133,17 @@ export default function AdminStaffPage() {
   };
 
   const handleDelete = async (staffMember: Profile) => {
-    const name = staffMember.full_name || staffMember.email;
-    if (!window.confirm(`Delete ${name}? This permanently removes their account, tasks, and messages.`)) return;
-    setDeletingId(staffMember.id);
+    // Open the in-app confirmation modal — never use window.confirm()
+    setConfirmDelete(staffMember);
+  };
+
+  const confirmAndDelete = async () => {
+    if (!confirmDelete) return;
+    const name = confirmDelete.full_name || confirmDelete.email;
+    setDeletingId(confirmDelete.id);
+    setConfirmDelete(null);
     setError('');
-    const response = await fetch(`/api/users/${staffMember.id}`, { method: 'DELETE' });
+    const response = await fetch(`/api/users/${confirmDelete.id}`, { method: 'DELETE' });
     const result = await response.json().catch(() => ({}));
     setDeletingId(null);
     if (!response.ok) {
@@ -139,7 +151,7 @@ export default function AdminStaffPage() {
       return;
     }
     setSuccess(`${name} was deleted.`);
-    fetchStaff();
+    void fetchStaff();
     setTimeout(() => setSuccess(''), 3000);
   };
 
@@ -543,6 +555,46 @@ export default function AdminStaffPage() {
                   {inviting ? 'Sending...' : 'Send Invitation'}
                 </button>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {/* ── Delete Confirmation Modal ── */}
+      {confirmDelete && (
+        <div className="modal-backdrop">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="modal-panel w-full max-w-[420px]"
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(244,63,94,0.15)' }}>
+                <Trash2 size={18} style={{ color: 'var(--accent-rose)' }} />
+              </div>
+              <div>
+                <h3 className="font-semibold">Delete Staff Member</h3>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
+              Are you sure you want to permanently delete{' '}
+              <span className="font-semibold text-white">
+                {confirmDelete.full_name || confirmDelete.email}
+              </span>?
+              This will remove their account, all tasks, and messages.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDelete(null)} className="btn-secondary flex-1">
+                Cancel
+              </button>
+              <button
+                onClick={() => void confirmAndDelete()}
+                className="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90"
+                style={{ background: 'var(--accent-rose)' }}
+              >
+                Yes, Delete
+              </button>
             </div>
           </motion.div>
         </div>

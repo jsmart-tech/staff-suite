@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, Task } from '@/types';
@@ -14,7 +14,8 @@ export function EmployeeDashboard({ profile }: { profile: Profile }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [liveSeconds, setLiveSeconds] = useState(0);
-  const supabase = createClient();
+  // Memoized — never recreates the WebSocket connection on re-render
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchTasks = useCallback(async () => {
     const { data } = await supabase

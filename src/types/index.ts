@@ -10,6 +10,7 @@ export interface Profile {
   avatar_url: string | null;
   resume_url: string | null;
   phone: string | null;
+  invitation_accepted: boolean | null; // added via patch_system_reliability.sql
   created_at: string;
 }
 
@@ -18,7 +19,7 @@ export interface LoginLog {
   user_id: string;
   login_time: string;
   ip_address: string | null;
-  profiles?: Pick<Profile, 'full_name' | 'email' | 'role'>;
+  profiles?: Pick<Profile, 'full_name' | 'email' | 'role' | 'avatar_url'>;
 }
 
 export type TaskStatus = 'in_progress' | 'completed' | 'blocked';
@@ -59,6 +60,8 @@ export interface ChatMessage {
   sender_id: string;
   content: string;
   attachment_url: string | null;
+  attachment_name: string | null; // added via patch_chat_attachments.sql
+  client_message_id: string | null; // added via patch_system_reliability.sql
   channel: string;
   created_at: string;
   profiles?: Pick<Profile, 'full_name' | 'avatar_url' | 'role'>;
@@ -76,6 +79,9 @@ export interface DirectMessage {
   conversation_id: string;
   sender_id: string;
   content: string;
+  attachment_url: string | null;
+  attachment_name: string | null; // added via patch_chat_attachments.sql
+  client_message_id: string | null; // added via patch_system_reliability.sql
   created_at: string;
   profiles?: Pick<Profile, 'full_name' | 'avatar_url' | 'role'>;
 }
