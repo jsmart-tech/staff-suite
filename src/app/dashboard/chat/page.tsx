@@ -632,13 +632,17 @@ export default function ChatPage() {
   const sidebar = (
     <aside
       className={`${
-        mobileChatOpen ? 'hidden' : 'block'
-      } min-h-[620px] w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:block md:w-60`}
+        mobileChatOpen ? 'hidden' : 'flex flex-col'
+      } min-h-[620px] w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:flex md:flex-col md:w-60`}
     >
-      <div className="border-b border-[var(--border)] p-5">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-secondary)] p-5">
         <h1 className="font-bold">Team Chat</h1>
         <p className="mt-1 text-xs text-[var(--text-muted)]">Choose a channel or direct message</p>
       </div>
+
+      {/* Scrollable list */}
+      <div className="flex-1 overflow-y-auto">
 
       {/* Channels */}
       <div className="p-3">
@@ -688,6 +692,7 @@ export default function ChatPage() {
             )}
           </button>
         ))}
+      </div>
       </div>
     </aside>
   );
