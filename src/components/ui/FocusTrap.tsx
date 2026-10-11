@@ -33,9 +33,13 @@ export function FocusTrap({ children, onEscape, className, ...rest }: FocusTrapP
     // Save previously focused element so we can restore it on unmount
     const previouslyFocused = document.activeElement as HTMLElement | null;
 
-    // Focus the first focusable element inside the trap
-    const firstFocusable = el.querySelector<HTMLElement>(FOCUSABLE);
-    firstFocusable?.focus();
+    // Focus the first focusable element inside the trap,
+    // but only if no child has declared autoFocus (let the browser handle that).
+    const hasAutoFocus = el.querySelector<HTMLElement>('[autofocus],[autoFocus]');
+    if (!hasAutoFocus) {
+      const firstFocusable = el.querySelector<HTMLElement>(FOCUSABLE);
+      firstFocusable?.focus();
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {

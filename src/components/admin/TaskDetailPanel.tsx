@@ -126,6 +126,8 @@ export function TaskDetailPanel({
                 }}
                 placeholder="Write a comment… (Ctrl+Enter to send)"
                 aria-label="Add a comment"
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
                 className="input-field min-h-[80px] flex-1 resize-y"
               />
               <button
