@@ -114,7 +114,9 @@ body {
 .main-area {
   flex: 1 1 0%;
   min-width: 0;
+  height: 100vh;
   overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(circle at 92% 4%, rgba(241, 149, 141, 0.12), transparent 28rem),
     radial-gradient(circle at 5% 90%, rgba(175, 240, 226, 0.08), transparent 24rem),

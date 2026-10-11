@@ -130,11 +130,14 @@ export default function ChatPage() {
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Prevents double-submit on rapid taps / Enter key
   const sendLockRef = useRef(false);
   // Tracks clientMessageIds we have already committed so the Realtime echo is ignored
   const sentClientIdsRef = useRef<Set<string>>(new Set());
+  // True when the user has manually scrolled up — suppresses auto-scroll-to-bottom
+  const userScrolledUpRef = useRef(false);
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -203,9 +206,15 @@ export default function ChatPage() {
     []
   );
 
-  // ── scroll to bottom whenever messages change ─────────────────────────────
+  // ── smart scroll: only snap to bottom when user is already near the bottom ─
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // Auto-scroll only when within 120 px of the bottom (user hasn't scrolled up)
+    if (distanceFromBottom < 120) {
+      endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   // ── initial load: profile + contacts ─────────────────────────────────────
@@ -505,7 +514,16 @@ export default function ChatPage() {
   );
 
   const messageList = (
-    <section className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+    <section
+      ref={scrollRef as React.RefObject<HTMLElement>}
+      onScroll={() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        userScrolledUpRef.current = distanceFromBottom > 120;
+      }}
+      className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5"
+    >
       {messages.length === 0 ? (
         <div className="flex h-full min-h-80 flex-col items-center justify-center text-center">
           <div className="mb-3 rounded-2xl bg-[rgba(124,91,246,0.15)] p-4">
@@ -698,7 +716,7 @@ export default function ChatPage() {
   );
 
   return (
-    <div className="min-h-[620px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] md:flex">
+    <div className="flex h-[calc(100dvh-theme(spacing.16))] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] lg:h-[calc(100dvh-theme(spacing.14))]">
       {sidebar}
       {conversationPanel}
     </div>
