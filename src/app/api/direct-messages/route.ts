@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { recipientId, content, attachmentUrl, attachmentName, clientMessageId } = await request.json();
+    const { recipientId, content, attachmentUrl, attachmentName, attachmentMimeType, clientMessageId } = await request.json();
     if (!recipientId || recipientId === user.id || (typeof content !== 'string' && !attachmentUrl) || (!content?.trim() && !attachmentUrl)) return NextResponse.json({ error: 'Choose another staff member and enter a message or attachment.' }, { status: 400 });
     if ((content || '').trim().length > 5000) return NextResponse.json({ error: 'Messages are limited to 5,000 characters.' }, { status: 400 });
 
@@ -28,12 +28,16 @@ export async function POST(request: NextRequest) {
     }
 
     const clientMessageIdValue = typeof clientMessageId === 'string' ? clientMessageId : null;
+    const safeMimeType = typeof attachmentMimeType === 'string' && attachmentMimeType.length < 128
+      ? attachmentMimeType
+      : null;
     const inserted = await admin.from('direct_messages').insert({
       conversation_id: conversation.id,
       sender_id: user.id,
       content: (content || '').trim(),
       attachment_url: attachmentUrl || null,
       attachment_name: attachmentName || null,
+      attachment_mime_type: safeMimeType,
       client_message_id: clientMessageIdValue,
     }).select().single();
     let message = inserted.data;

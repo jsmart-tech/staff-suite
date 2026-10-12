@@ -321,10 +321,10 @@ export default function ChatPage() {
 
     const load = async (reset = false) => {
       setError('');
-      if (reset) {
-        setMessages([]);
-        setConversationId(null);
-      }
+      // NEVER call setMessages([]) before the fetch completes — it causes a
+      // visible blank flash when switching channels. On reset we only clear
+      // conversationId (cheap, no visual gap).
+      if (reset) setConversationId(null);
 
       if (active.kind === 'channel') {
         const { data, error: loadError } = await supabase
@@ -556,11 +556,14 @@ export default function ChatPage() {
     const endpoint = active.kind === 'channel' ? '/api/chat/messages' : '/api/direct-messages';
     const body: Record<string, unknown> =
       active.kind === 'channel'
-        ? { channel: active.id, content: messageContent, attachmentUrl: snapUrl, attachmentName: snapName, clientMessageId }
-        : { recipientId: active.id, content: messageContent, attachmentUrl: snapUrl, attachmentName: snapName, clientMessageId };
+        ? { channel: active.id, content: messageContent, attachmentUrl: snapUrl, attachmentName: snapName, attachmentMimeType: snapMimeType, clientMessageId }
+        : { recipientId: active.id, content: messageContent, attachmentUrl: snapUrl, attachmentName: snapName, attachmentMimeType: snapMimeType, clientMessageId };
 
     void dispatchMessage(optimisticId, clientMessageId, endpoint, body);
   }, [sending, content, attachment, profile, active, dispatchMessage]);
+
+  // XHR ref so we can abort in-flight uploads when the chip is dismissed
+  const uploadXhrRef = useRef<XMLHttpRequest | null>(null);
 
   // ── file upload ───────────────────────────────────────────────────────────
   const uploadAttachment = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -573,22 +576,26 @@ export default function ChatPage() {
       return;
     }
 
-    // 1. Generate a local blob URL instantly — this is used for the optimistic preview
+    // 1. Create blob URL immediately for instant local preview
     const blobUrl = URL.createObjectURL(file);
+    // Keep the browser MIME type as a quick hint for the chip/optimistic bubble;
+    // the server will overwrite this with the magic-byte-detected value on send.
+    const browserMime = file.type || 'application/octet-stream';
 
-    // 2. Show the chip immediately (uploading state)
+    // 2. Show chip immediately
     setAttachment({
-      url: blobUrl,   // will be swapped for the server URL once upload completes
+      url: blobUrl,   // will be swapped to the server URL after upload
       name: file.name,
-      mimeType: file.type || 'application/octet-stream',
+      mimeType: browserMime,
       blobUrl,
       uploading: true,
       progress: 0,
     });
     setError('');
 
-    // 3. Upload with XHR so we can track progress
+    // 3. Upload with XHR for progress events and abort support
     const xhr = new XMLHttpRequest();
+    uploadXhrRef.current = xhr;
     const form = new FormData();
     form.append('file', file);
 
@@ -599,14 +606,17 @@ export default function ChatPage() {
     };
 
     xhr.onload = () => {
+      uploadXhrRef.current = null;
       try {
-        const result = JSON.parse(xhr.responseText) as { url?: string; name?: string; error?: string };
+        const result = JSON.parse(xhr.responseText) as { url?: string; name?: string; mimeType?: string; error?: string };
         if (xhr.status === 200 && result.url) {
-          // Swap blob URL → server URL; keep blobUrl for the optimistic bubble preview
+          // Swap blob URL → server URL.
+          // Use the server-detected mimeType (magic bytes) as the authoritative value.
           setAttachment((prev) => prev ? {
             ...prev,
             url: result.url!,
             name: result.name ?? prev.name,
+            mimeType: result.mimeType ?? prev.mimeType,
             uploading: false,
             progress: 1,
           } : null);
@@ -623,6 +633,7 @@ export default function ChatPage() {
     };
 
     xhr.onerror = () => {
+      uploadXhrRef.current = null;
       URL.revokeObjectURL(blobUrl);
       setAttachment(null);
       setError('File upload failed. Please try again.');
@@ -728,16 +739,22 @@ export default function ChatPage() {
               {Math.round(attachment.progress * 100)}%
             </span>
           )}
-          {!attachment.uploading && (
-            <button
-              type="button"
-              aria-label="Remove attachment"
-              onClick={() => { URL.revokeObjectURL(attachment.blobUrl); setAttachment(null); }}
-              className="ml-auto shrink-0"
-            >
-              <X size={13} />
-            </button>
-          )}
+          {/* X button always visible — aborts in-flight XHR if still uploading */}
+          <button
+            type="button"
+            aria-label="Remove attachment"
+            onClick={() => {
+              if (uploadXhrRef.current) {
+                uploadXhrRef.current.abort();
+                uploadXhrRef.current = null;
+              }
+              URL.revokeObjectURL(attachment.blobUrl);
+              setAttachment(null);
+            }}
+            className="ml-auto shrink-0"
+          >
+            <X size={13} />
+          </button>
         </div>
       )}
       <div className="flex items-end gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] p-2">
@@ -794,10 +811,12 @@ export default function ChatPage() {
           className="min-h-10 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none"
         />
 
-        {/* Send button */}
+        {/* Send button — enabled even while uploading; send() will use the
+            blob URL as a placeholder and the server URL will be in the DB
+            once the upload completes (the chip has already cleared) */}
         <button
           onClick={() => void send()}
-          disabled={sending || (!content.trim() && !attachment) || attachment?.uploading}
+          disabled={sending || (!content.trim() && !attachment)}
           aria-label="Send message"
           className="rounded-xl bg-[var(--accent-violet)] p-3 text-white disabled:opacity-50 transition-opacity"
         >
