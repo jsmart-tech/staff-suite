@@ -9,10 +9,13 @@ import { Avatar } from '@/components/ui/Avatar';
 import {
   ArrowLeft, Hash, Send, Users,
   Paperclip, X, Image as ImageIcon, Video, FileText, Mic,
+  Loader2, CheckCheck, AlertCircle, RotateCcw,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 const CHANNELS = ['general', 'announcements', 'random', 'hr', 'finance'];
+
+type MessageStatus = 'sending' | 'sent' | 'failed';
 
 type Message = {
   id: string;
@@ -20,20 +23,45 @@ type Message = {
   content: string;
   attachment_url?: string | null;
   attachment_name?: string | null;
+  attachment_mime_type?: string | null; // populated for optimistic msgs from File.type
   client_message_id?: string | null;
   created_at: string;
   profiles?: Pick<Profile, 'full_name' | 'avatar_url' | 'role'>;
+  // Local-only fields — never sent to / returned from the server
+  _status?: MessageStatus;
+  _retryPayload?: RetryPayload;
+};
+
+type RetryPayload = {
+  endpoint: string;
+  body: Record<string, unknown>;
+  clientMessageId: string;
 };
 
 type ActiveChat =
   | { kind: 'channel'; id: string; label: string }
   | { kind: 'direct'; id: string; label: string };
 
+// Attachment held in composer state while user is composing / file is uploading
+type PendingAttachment = {
+  /** Server URL once upload completes, blob: URL while uploading */
+  url: string;
+  name: string;
+  mimeType: string;
+  /** blob: URL for instant local preview — always set */
+  blobUrl: string;
+  /** True while the upload XHR is in-flight */
+  uploading: boolean;
+  /** 0–1 upload progress */
+  progress: number;
+};
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function isImageUrl(name?: string | null, url?: string | null): boolean {
-  const src = name || url || '';
-  return /\.(gif|jpe?g|png|webp|svg)$/i.test(src);
+/** Decide if an attachment should render as an inline image. */
+function isImage(mimeType?: string | null, name?: string | null): boolean {
+  if (mimeType) return mimeType.startsWith('image/');
+  return /\.(gif|jpe?g|png|webp|avif|svg|heic|heif)$/i.test(name ?? '');
 }
 
 // ─── sub-components ─────────────────────────────────────────────────────────
@@ -41,17 +69,20 @@ function isImageUrl(name?: string | null, url?: string | null): boolean {
 function ChatBubble({
   message,
   own,
+  onRetry,
 }: {
   message: Message;
   own: boolean;
+  onRetry?: (m: Message) => void;
 }) {
-  const hasText = Boolean(message.content?.trim());
-  const hasAttachment = Boolean(message.attachment_url);
-  const isImg = isImageUrl(message.attachment_name, message.attachment_url);
+  const hasText    = Boolean(message.content?.trim());
+  const hasAttach  = Boolean(message.attachment_url);
+  const showImage  = hasAttach && isImage(message.attachment_mime_type, message.attachment_name);
+  const isPending  = message._status === 'sending';
+  const isFailed   = message._status === 'failed';
 
   return (
     <article className={`flex gap-3 ${own ? 'flex-row-reverse' : ''}`}>
-      {/* Avatar — uses Avatar component so /api/files/ URLs send the session cookie */}
       <Avatar
         src={message.profiles?.avatar_url}
         name={message.profiles?.full_name}
@@ -59,7 +90,6 @@ function ChatBubble({
         className="mt-auto"
       />
 
-      {/* Bubble column */}
       <div className={`flex max-w-[82%] flex-col sm:max-w-[72%] ${own ? 'items-end' : 'items-start'}`}>
         {/* Sender name + role + time */}
         <div className="mb-1 flex max-w-full items-center gap-2 text-xs">
@@ -69,31 +99,39 @@ function ChatBubble({
           <span className={`badge shrink-0 px-1.5 py-0 text-[9px] ${getRoleBadgeColor(message.profiles?.role || 'employee')}`}>
             {message.profiles?.role}
           </span>
-          <span className="hidden text-[var(--text-muted)] sm:inline">
-            {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
-          </span>
+          {!isPending && !isFailed && (
+            <span className="hidden text-[var(--text-muted)] sm:inline">
+              {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
+            </span>
+          )}
         </div>
 
         {/* Text bubble */}
         {hasText && (
-          <p className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${own ? 'chat-bubble-own' : 'chat-bubble-other'}`}>
+          <p className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+            own ? 'chat-bubble-own' : 'chat-bubble-other'
+          } ${isPending ? 'opacity-60' : ''}`}>
             {message.content}
           </p>
         )}
 
-        {/* Attachment — displayed directly below name/text, like WhatsApp */}
-        {hasAttachment && (
+        {/* Attachment */}
+        {hasAttach && (
           <a
-            href={message.attachment_url!}
+            href={isFailed || isPending ? undefined : message.attachment_url!}
             target="_blank"
             rel="noreferrer"
-            className={`mt-1 block overflow-hidden rounded-xl border border-[var(--border)] ${own ? 'bg-[rgba(255,255,255,0.12)]' : 'bg-[var(--bg-hover)]'}`}
+            className={`mt-1 block overflow-hidden rounded-xl border border-[var(--border)] ${
+              own ? 'bg-[rgba(255,255,255,0.12)]' : 'bg-[var(--bg-hover)]'
+            } ${isPending ? 'opacity-60' : ''}`}
           >
-            {isImg ? (
+            {showImage ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={message.attachment_url!}
                 alt={message.attachment_name || 'Attached image'}
+                loading="lazy"
+                decoding="async"
                 className="max-h-64 max-w-[280px] object-contain sm:max-w-xs"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
               />
@@ -104,6 +142,33 @@ function ChatBubble({
               </span>
             )}
           </a>
+        )}
+
+        {/* Message status row — only shown on own messages */}
+        {own && (
+          <div className="mt-0.5 flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
+            {isPending && (
+              <><Loader2 size={10} className="animate-spin" /><span>Sending…</span></>
+            )}
+            {isFailed && (
+              <>
+                <AlertCircle size={10} className="text-red-400" />
+                <span className="text-red-400">Failed</span>
+                {onRetry && (
+                  <button
+                    type="button"
+                    onClick={() => onRetry(message)}
+                    className="ml-1 flex items-center gap-0.5 text-[var(--accent-violet)] hover:underline"
+                  >
+                    <RotateCcw size={9} /> Retry
+                  </button>
+                )}
+              </>
+            )}
+            {!isPending && !isFailed && (
+              <CheckCheck size={11} className="text-[var(--accent-violet)]" />
+            )}
+          </div>
         )}
       </div>
     </article>
@@ -120,7 +185,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [content, setContent] = useState('');
-  const [attachment, setAttachment] = useState<{ url: string; name: string } | null>(null);
+  const [attachment, setAttachment] = useState<PendingAttachment | null>(null);
   const [attachmentKind, setAttachmentKind] = useState<'photo' | 'document' | 'audio' | 'video'>('photo');
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [sending, setSending] = useState(false);
@@ -357,70 +422,44 @@ export default function ChatPage() {
   }, [active, conversationId, markAsRead, hydrateSenderProfiles, supabase]);
 
   // ── send ──────────────────────────────────────────────────────────────────
-  const send = async () => {
-    if (sending || sendLockRef.current || (!content.trim() && !attachment)) return;
-
-    const messageContent = content.trim();
-    const clientMessageId = crypto.randomUUID();
-    const optimisticId = `pending-${clientMessageId}`;
-
-    const optimistic: Message = {
-      id: optimisticId,
-      sender_id: profile?.id || '',
-      content: messageContent,
-      attachment_url: attachment?.url ?? null,
-      attachment_name: attachment?.name ?? null,
-      client_message_id: clientMessageId,
-      created_at: new Date().toISOString(),
-      profiles: profile
-        ? { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role }
-        : undefined,
-    };
-
-    setMessages((prev) => [...prev, optimistic]);
-    setContent('');
-    sendLockRef.current = true;
-    setSending(true);
-    setError('');
-
-    const endpoint =
-      active.kind === 'channel' ? '/api/chat/messages' : '/api/direct-messages';
-    const body =
-      active.kind === 'channel'
-        ? {
-            channel: active.id,
-            content: messageContent,
-            attachmentUrl: attachment?.url,
-            attachmentName: attachment?.name,
-            clientMessageId,
-          }
-        : {
-            recipientId: active.id,
-            content: messageContent,
-            attachmentUrl: attachment?.url,
-            attachmentName: attachment?.name,
-            clientMessageId,
-          };
-
+  /**
+   * Extracted so we can call it from both the Send button and the Retry button.
+   * `overridePayload` is set when retrying a failed message.
+   */
+  const dispatchMessage = useCallback(async (
+    optimisticId: string,
+    clientMessageId: string,
+    endpoint: string,
+    body: Record<string, unknown>,
+  ) => {
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).catch(() => null);
 
+    // Network failure
     if (!response) {
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
-      setError('Message could not be sent. Please try again.');
-      sendLockRef.current = false;
+      setMessages((prev) => prev.map((m) =>
+        m.id === optimisticId
+          ? { ...m, _status: 'failed' as MessageStatus, _retryPayload: { endpoint, body, clientMessageId } }
+          : m
+      ));
       setSending(false);
+      sendLockRef.current = false;
       return;
     }
 
     const result = await response.json().catch(() => ({}));
     setSending(false);
 
+    // Server error
     if (!response.ok) {
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      setMessages((prev) => prev.map((m) =>
+        m.id === optimisticId
+          ? { ...m, _status: 'failed' as MessageStatus, _retryPayload: { endpoint, body, clientMessageId } }
+          : m
+      ));
       setError(result.error || 'Message could not be sent.');
       sendLockRef.current = false;
       return;
@@ -430,47 +469,168 @@ export default function ChatPage() {
       setConversationId(result.conversationId);
     }
 
-    // Mark this clientMessageId as confirmed so Realtime echo is handled correctly
+    // Mark confirmed so the Realtime echo doesn't add a duplicate
     sentClientIdsRef.current.add(clientMessageId);
 
     if (result.message) {
       const confirmed: Message = {
         ...result.message,
+        _status: 'sent' as MessageStatus,
         profiles: profile
           ? { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role }
           : undefined,
       };
-      setMessages((prev) =>
-        prev
-          .filter((m) => m.id !== optimisticId)
-          .filter((m) => m.id !== confirmed.id)
-          .concat(confirmed)
-          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-      );
+      // Replace the optimistic placeholder IN-PLACE (same sort position, no flicker)
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === optimisticId);
+        if (idx !== -1) {
+          const next = [...prev];
+          next[idx] = confirmed;
+          return next;
+        }
+        // Optimistic was already replaced by Realtime — just deduplicate
+        return prev.some((m) => m.id === confirmed.id)
+          ? prev
+          : [...prev, confirmed].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      });
     }
 
-    setAttachment(null);
-    setAttachmentKind('photo');
     sendLockRef.current = false;
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, profile]);
 
-  // ── file upload ───────────────────────────────────────────────────────────
-  const uploadAttachment = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (file.size > 20 * 1024 * 1024) {
-      setError('Files over 20 MB must be uploaded to Google Drive, then shared as a link.');
-      event.target.value = '';
+  const retryMessage = useCallback((failed: Message) => {
+    if (!failed._retryPayload) return;
+    const { endpoint, body, clientMessageId } = failed._retryPayload;
+    setMessages((prev) => prev.map((m) =>
+      m.id === failed.id ? { ...m, _status: 'sending' as MessageStatus } : m
+    ));
+    setSending(true);
+    sendLockRef.current = true;
+    setError('');
+    void dispatchMessage(failed.id, clientMessageId, endpoint, body);
+  }, [dispatchMessage]);
+
+  const send = useCallback(async () => {
+    // Bail if already sending OR upload still in-flight
+    if (sending || sendLockRef.current || (!content.trim() && !attachment)) return;
+    if (attachment?.uploading) {
+      setError('Please wait for the file to finish uploading.');
       return;
     }
+
+    const messageContent = content.trim();
+    const clientMessageId = crypto.randomUUID();
+    const optimisticId    = `pending-${clientMessageId}`;
+
+    // Snapshot attachment values before clearing state
+    const snapUrl      = attachment?.url      ?? null;
+    const snapName     = attachment?.name     ?? null;
+    const snapMimeType = attachment?.mimeType ?? null;
+
+    // ── 1. Update UI instantly — clear composer, show optimistic bubble ──────
+    const optimistic: Message = {
+      id: optimisticId,
+      sender_id: profile?.id || '',
+      content: messageContent,
+      attachment_url:       snapUrl,
+      attachment_name:      snapName,
+      attachment_mime_type: snapMimeType,
+      client_message_id: clientMessageId,
+      created_at: new Date().toISOString(),
+      _status: 'sending',
+      profiles: profile
+        ? { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role }
+        : undefined,
+    };
+
+    setMessages((prev) => [...prev, optimistic]);
+    setContent('');            // ← clears text field immediately
+    setAttachment(null);       // ← clears chip immediately (before any await)
+    setAttachmentKind('photo');
+    setError('');
+    sendLockRef.current = true;
+    setSending(true);
+
+    // ── 2. Fire API call in background ──────────────────────────────────────
+    const endpoint = active.kind === 'channel' ? '/api/chat/messages' : '/api/direct-messages';
+    const body: Record<string, unknown> =
+      active.kind === 'channel'
+        ? { channel: active.id, content: messageContent, attachmentUrl: snapUrl, attachmentName: snapName, clientMessageId }
+        : { recipientId: active.id, content: messageContent, attachmentUrl: snapUrl, attachmentName: snapName, clientMessageId };
+
+    void dispatchMessage(optimisticId, clientMessageId, endpoint, body);
+  }, [sending, content, attachment, profile, active, dispatchMessage]);
+
+  // ── file upload ───────────────────────────────────────────────────────────
+  const uploadAttachment = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = ''; // reset immediately so the same file can be re-picked
+
+    if (file.size > 20 * 1024 * 1024) {
+      setError('Files over 20 MB must be uploaded to Google Drive, then shared as a link.');
+      return;
+    }
+
+    // 1. Generate a local blob URL instantly — this is used for the optimistic preview
+    const blobUrl = URL.createObjectURL(file);
+
+    // 2. Show the chip immediately (uploading state)
+    setAttachment({
+      url: blobUrl,   // will be swapped for the server URL once upload completes
+      name: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      blobUrl,
+      uploading: true,
+      progress: 0,
+    });
+    setError('');
+
+    // 3. Upload with XHR so we can track progress
+    const xhr = new XMLHttpRequest();
     const form = new FormData();
     form.append('file', file);
-    const response = await fetch('/api/chat/upload', { method: 'POST', body: form });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) setError(result.error || 'File upload failed.');
-    else setAttachment({ url: result.url, name: result.name });
-    event.target.value = '';
-  };
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        setAttachment((prev) => prev ? { ...prev, progress: e.loaded / e.total } : null);
+      }
+    };
+
+    xhr.onload = () => {
+      try {
+        const result = JSON.parse(xhr.responseText) as { url?: string; name?: string; error?: string };
+        if (xhr.status === 200 && result.url) {
+          // Swap blob URL → server URL; keep blobUrl for the optimistic bubble preview
+          setAttachment((prev) => prev ? {
+            ...prev,
+            url: result.url!,
+            name: result.name ?? prev.name,
+            uploading: false,
+            progress: 1,
+          } : null);
+        } else {
+          URL.revokeObjectURL(blobUrl);
+          setAttachment(null);
+          setError(result.error || 'File upload failed.');
+        }
+      } catch {
+        URL.revokeObjectURL(blobUrl);
+        setAttachment(null);
+        setError('File upload failed.');
+      }
+    };
+
+    xhr.onerror = () => {
+      URL.revokeObjectURL(blobUrl);
+      setAttachment(null);
+      setError('File upload failed. Please try again.');
+    };
+
+    xhr.open('POST', '/api/chat/upload');
+    xhr.send(form);
+  }, []);
 
   const attachmentOptions = [
     { kind: 'photo'    as const, label: 'Photo',    icon: ImageIcon, color: '#60a5fa', accept: 'image/*' },
@@ -542,6 +702,7 @@ export default function ChatPage() {
             key={message.id}
             message={message}
             own={message.sender_id === profile?.id}
+            onRetry={retryMessage}
           />
         ))
       )}
@@ -558,11 +719,25 @@ export default function ChatPage() {
       )}
       {attachment && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-[var(--bg-hover)] px-3 py-2 text-xs">
-          <Paperclip size={13} />
-          <span className="truncate">{attachment.name}</span>
-          <button onClick={() => setAttachment(null)} className="ml-auto shrink-0">
-            <X size={13} />
-          </button>
+          {attachment.uploading
+            ? <Loader2 size={13} className="shrink-0 animate-spin text-[var(--accent-violet)]" />
+            : <Paperclip size={13} className="shrink-0" />}
+          <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
+          {attachment.uploading && (
+            <span className="shrink-0 tabular-nums text-[var(--text-muted)]">
+              {Math.round(attachment.progress * 100)}%
+            </span>
+          )}
+          {!attachment.uploading && (
+            <button
+              type="button"
+              aria-label="Remove attachment"
+              onClick={() => { URL.revokeObjectURL(attachment.blobUrl); setAttachment(null); }}
+              className="ml-auto shrink-0"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
       )}
       <div className="flex items-end gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] p-2">
@@ -622,11 +797,11 @@ export default function ChatPage() {
         {/* Send button */}
         <button
           onClick={() => void send()}
-          disabled={sending || (!content.trim() && !attachment)}
+          disabled={sending || (!content.trim() && !attachment) || attachment?.uploading}
           aria-label="Send message"
-          className="rounded-xl bg-[var(--accent-violet)] p-3 text-white disabled:opacity-50"
+          className="rounded-xl bg-[var(--accent-violet)] p-3 text-white disabled:opacity-50 transition-opacity"
         >
-          <Send size={16} />
+          {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
       </div>
       <p className="mt-1.5 px-2 text-[11px] text-[var(--text-muted)]">
