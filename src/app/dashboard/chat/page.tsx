@@ -982,7 +982,7 @@ export default function ChatPage() {
     <aside
       className={`${
         mobileChatOpen ? 'hidden' : 'flex flex-col'
-      } min-h-[620px] w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:relative md:flex md:h-full md:w-60 md:shrink-0 md:self-start md:overflow-hidden`}
+      } min-h-[620px] w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:sticky md:top-0 md:flex md:h-full md:w-60 md:shrink-0 md:self-start md:overflow-hidden`}
     >
       {/* Sticky header */}
       <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-secondary)] p-5">
