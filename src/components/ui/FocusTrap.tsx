@@ -26,6 +26,9 @@ interface FocusTrapProps extends React.HTMLAttributes<HTMLDivElement> {
 export function FocusTrap({ children, onEscape, className, ...rest }: FocusTrapProps) {
   const ref = useRef<HTMLDivElement>(null);
 
+  // Capture and restore focus only for the lifetime of the trap. Do not put
+  // this in the keyboard-listener effect: callback changes during a modal
+  // rerender must never move focus away from a textarea or input.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -40,6 +43,15 @@ export function FocusTrap({ children, onEscape, className, ...rest }: FocusTrapP
       const firstFocusable = el.querySelector<HTMLElement>(FOCUSABLE);
       firstFocusable?.focus();
     }
+
+    return () => {
+      previouslyFocused?.focus?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -76,8 +88,6 @@ export function FocusTrap({ children, onEscape, className, ...rest }: FocusTrapP
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      // Restore focus to the trigger element on unmount
-      previouslyFocused?.focus?.();
     };
   }, [onEscape]);
 
