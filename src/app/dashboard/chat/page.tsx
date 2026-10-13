@@ -7,7 +7,7 @@ import { Profile } from '@/types';
 import { getRoleBadgeColor } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import {
-  ArrowLeft, Hash, Send, Users,
+  ArrowLeft, Hash, Send, Users, Search, Plus, Bell, MoreHorizontal, Smile,
   Paperclip, X, Image as ImageIcon, Video, FileText, Mic,
   Loader2, CheckCheck, AlertCircle, RotateCcw,
 } from 'lucide-react';
@@ -247,6 +247,7 @@ export default function ChatPage() {
   const [unreadScopes, setUnreadScopes] = useState<string[]>([]);
   const [unreadDirectIds, setUnreadDirectIds] = useState<string[]>([]);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
+  const [conversationSearch, setConversationSearch] = useState('');
 
   const scrollRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -788,10 +789,17 @@ export default function ChatPage() {
     { kind: 'audio'    as const, label: 'Audio',    icon: Mic,       color: '#34d399', accept: 'audio/*' },
   ];
 
+  const searchTerm = conversationSearch.trim().toLowerCase();
+  const visibleChannels = CHANNELS.filter((channel) => !searchTerm || channel.includes(searchTerm));
+  const visibleContacts = contacts.filter((contact) => {
+    const name = (contact.full_name || contact.email || '').toLowerCase();
+    return !searchTerm || name.includes(searchTerm);
+  });
+
   // ── render ────────────────────────────────────────────────────────────────
 
   const chatHeader = (
-    <header className="chat-header flex shrink-0 items-center gap-3 border-b border-[var(--border)] px-4 py-4 sm:px-5">
+    <header className="chat-header flex shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[rgba(17,20,28,0.82)] px-4 py-3 sm:px-6">
       <button
         type="button"
         onClick={() => setMobileChatOpen(false)}
@@ -819,6 +827,15 @@ export default function ChatPage() {
       <span className="ml-auto shrink-0 rounded-full bg-[var(--bg-hover)] px-2 py-1 text-xs text-[var(--text-muted)]">
         {messages.filter((m) => !m.id.startsWith('pending-')).length}
       </span>
+      <button type="button" aria-label="Search messages" className="hidden rounded-xl p-2 text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-white sm:block">
+        <Search size={17} />
+      </button>
+      <button type="button" aria-label="Notifications" className="hidden rounded-xl p-2 text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-white sm:block">
+        <Bell size={17} />
+      </button>
+      <button type="button" aria-label="Conversation options" className="rounded-xl p-2 text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-white">
+        <MoreHorizontal size={18} />
+      </button>
     </header>
   );
 
@@ -859,7 +876,7 @@ export default function ChatPage() {
   );
 
   const chatFooter = (
-    <footer className="chat-composer shrink-0 border-t border-[var(--border)] p-3 sm:p-4">
+    <footer className="chat-composer shrink-0 border-t border-[var(--border)] bg-[rgba(17,20,28,0.82)] p-3 sm:p-4">
       {error && (
         <p className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
           {error}
@@ -894,7 +911,7 @@ export default function ChatPage() {
           </button>
         </div>
       )}
-      <div className="flex items-end gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] p-2">
+      <div className="flex items-end gap-2 rounded-2xl border border-[#353b4c] bg-[#202532] p-2 shadow-[0_10px_30px_rgba(0,0,0,0.16)]">
         {/* Attachment picker */}
         <div className="relative">
           <input
@@ -948,6 +965,10 @@ export default function ChatPage() {
           className="min-h-10 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none"
         />
 
+        <button type="button" aria-label="Add emoji" className="hidden rounded-xl p-3 text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-white sm:block">
+          <Smile size={16} />
+        </button>
+
         {/* Send button — enabled even while uploading; send() will use the
             blob URL as a placeholder and the server URL will be in the DB
             once the upload completes (the chip has already cleared) */}
@@ -984,9 +1005,25 @@ export default function ChatPage() {
         mobileChatOpen ? 'hidden' : 'flex flex-col'
       } conversation-sidebar min-h-0 w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:flex md:h-full md:w-60 md:shrink-0 md:self-start md:overflow-hidden`}
     >
-      <div className="shrink-0 border-b border-[var(--border)] bg-[var(--bg-secondary)] p-5">
-        <h1 className="font-bold">Team Chat</h1>
-        <p className="mt-1 text-xs text-[var(--text-muted)]">Choose a channel or direct message</p>
+      <div className="shrink-0 border-b border-[var(--border)] bg-[#171b24] p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h1 className="text-lg font-bold tracking-tight">Team Chat</h1>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Choose a channel or direct message</p>
+          </div>
+          <button type="button" aria-label="New conversation" className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-white">
+            <Plus size={17} />
+          </button>
+        </div>
+        <label className="mt-4 flex items-center gap-2 rounded-xl border border-[#353b4c] bg-[#202532] px-3 py-2 text-sm text-[var(--text-muted)]">
+          <Search size={15} />
+          <input
+            value={conversationSearch}
+            onChange={(event) => setConversationSearch(event.target.value)}
+            placeholder="Search conversations..."
+            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[var(--text-muted)]"
+          />
+        </label>
       </div>
 
       {/* Scrollable list */}
@@ -997,7 +1034,7 @@ export default function ChatPage() {
         <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
           Channels
         </p>
-        {CHANNELS.map((ch) => (
+        {visibleChannels.map((ch) => (
           <button
             key={ch}
             onClick={() => selectChat({ kind: 'channel', id: ch, label: ch })}
@@ -1021,7 +1058,7 @@ export default function ChatPage() {
         <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
           Direct messages
         </p>
-        {contacts.map((contact) => (
+        {visibleContacts.map((contact) => (
           <button
             key={contact.id}
             onClick={() =>
