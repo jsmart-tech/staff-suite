@@ -334,7 +334,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
       <motion.aside
         animate={{ width: collapsed ? 64 : 240 }}
         transition={{ duration: 0.2, ease: 'easeInOut' }}
-        className="hidden lg:flex flex-col h-screen sticky top-0 flex-shrink-0 overflow-hidden"
+        className="hidden lg:flex flex-col h-screen sticky top-0 self-start flex-shrink-0 overflow-hidden"
         style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}
       >
         {renderSidebarContent()}
