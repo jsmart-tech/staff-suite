@@ -142,7 +142,7 @@ export default function AdminTasksPage() {
     setComment('');
     // Never render the previous task's thread while the new one loads.
     setComments([]);
-    const response = await fetch(`/api/tasks/${task.id}/comments`);
+    const response = await fetch(`/api/tasks/${task.id}/comments`, { cache: 'no-store' });
     if (response.ok && requestId === commentsRequestRef.current) {
       setComments((await response.json()).comments || []);
     }
@@ -300,6 +300,7 @@ export default function AdminTasksPage() {
       <AnimatePresence>
         {viewTask && (
           <TaskDetailPanel
+            key={viewTask.id}
             task={viewTask}
             comments={comments}
             comment={comment}
