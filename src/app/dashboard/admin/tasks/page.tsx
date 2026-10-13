@@ -310,18 +310,20 @@ export default function AdminTasksPage() {
 
       {/* ── Task Detail + Assign Task Modals ── */}
       <AnimatePresence>
-        {viewTask && (
-          <TaskDetailPanel
-            key={viewTask.id}
-            task={viewTask}
-            comments={commentsTaskId === viewTask.id ? comments : []}
-            comment={comment}
-            commentSaving={commentSaving}
-            onCommentChange={setComment}
-            onAddComment={() => void addComment()}
-            onClose={closeTask}
-          />
-        )}
+        <AnimatePresence mode="wait">
+          {viewTask && (
+            <TaskDetailPanel
+              key={viewTask.id}
+              task={viewTask}
+              comments={commentsTaskId === viewTask.id ? comments : []}
+              comment={comment}
+              commentSaving={commentSaving}
+              onCommentChange={setComment}
+              onAddComment={() => void addComment()}
+              onClose={closeTask}
+            />
+          )}
+        </AnimatePresence>
         {showModal && (
           <motion.div
             role="dialog"
