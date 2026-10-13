@@ -270,7 +270,11 @@ export default function ChatPage() {
 
   const selectChat = (next: ActiveChat) => {
     setActive(next);
-    setMobileChatOpen(true);
+    // Only switch to the conversation view on phones. On desktop and tablet,
+    // keep the conversation sidebar visible beside the selected chat.
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+      setMobileChatOpen(true);
+    }
   };
 
   const loadUnread = useCallback(async () => {
