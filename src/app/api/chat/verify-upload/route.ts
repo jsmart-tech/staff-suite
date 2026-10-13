@@ -88,9 +88,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'key and fileName are required.' }, { status: 400 });
   }
 
-  // Enforce ownership: the key must start with chat/{user.id}/
-  const expectedPrefix = `staging/chat/${user.id}/`;
-  if (!key.startsWith(expectedPrefix)) {
+  // Images may already be at their final key; other files must still be in
+  // the staging area until their bytes have been verified.
+  const stagingPrefix = `staging/chat/${user.id}/`;
+  const publicPrefix = `chat/${user.id}/`;
+  const isFinalKey = key.startsWith(publicPrefix) && publicKey === key;
+  if ((!key.startsWith(stagingPrefix) && !isFinalKey) ||
+      !publicKey.startsWith(publicPrefix)) {
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
   }
 
@@ -130,8 +134,10 @@ export async function POST(request: Request) {
   // pre-upload detection if the client sent an imperfect header sample).
   const authoritativeMime = detectedMime ?? 'application/octet-stream';
   try {
-    await r2.send(new CopyObjectCommand({ Bucket: r2Bucket, CopySource: `${r2Bucket}/${key}`, Key: publicKey, ContentType: authoritativeMime, MetadataDirective: 'REPLACE' }));
-    await r2.send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
+    if (!isFinalKey) {
+      await r2.send(new CopyObjectCommand({ Bucket: r2Bucket, CopySource: `${r2Bucket}/${key}`, Key: publicKey, ContentType: authoritativeMime, MetadataDirective: 'REPLACE' }));
+      await r2.send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
+    }
     const admin = (await import('@/lib/supabase/admin')).createAdminClient();
     const { error } = await admin.from('verified_uploads').insert({ user_id: user.id, staging_key: key, public_key: publicKey, mime_type: authoritativeMime });
     if (error) throw error;

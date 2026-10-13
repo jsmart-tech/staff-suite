@@ -66,8 +66,11 @@ export async function POST(request: Request) {
   // UUID entropy prevents enumeration/collision; the timestamp is retained
   // only as a useful sort hint and is not relied on for secrecy.
   const objectId = `${Date.now()}-${crypto.randomUUID()}-${safeName}`;
-  const key = `staging/chat/${user.id}/${objectId}`;
   const publicKey = `chat/${user.id}/${objectId}`;
+  // Images are already magic-byte checked before the presigned URL is issued.
+  // Upload them directly to their final key so verification does not need an
+  // additional R2 copy + delete round trip. Other file types remain staged.
+  const key = mimeType.startsWith('image/') ? publicKey : `staging/${publicKey}`;
 
   // Presigned PUT valid for 5 minutes.
   // Browser uploads directly to R2 — Next.js is not in the data path.
