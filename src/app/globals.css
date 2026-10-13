@@ -124,24 +124,23 @@ body {
     var(--bg-primary);
 }
 
-/* Team Chat is a bounded layout: only its two content lists may scroll. */
-.app-shell:has(.team-chat-page) {
+/* Team Chat opts out of the normal padded page wrapper. */
+.app-shell:has(.dashboard-chat-main) {
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
 }
 
-.app-shell:has(.team-chat-page) .main-area {
+.dashboard-chat-main {
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
 }
 
-.app-shell:has(.team-chat-page) .page-container {
-  display: flex;
+.dashboard-chat-main > .team-chat-page {
   flex: 1 1 0%;
-  flex-direction: column;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
