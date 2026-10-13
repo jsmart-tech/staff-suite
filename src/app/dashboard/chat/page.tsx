@@ -982,7 +982,7 @@ export default function ChatPage() {
     <aside
       className={`${
         mobileChatOpen ? 'hidden' : 'flex flex-col'
-      } min-h-[620px] w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:sticky md:top-0 md:flex md:h-full md:w-60 md:shrink-0 md:self-start md:overflow-hidden`}
+      } min-h-[620px] w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:flex md:h-full md:w-60 md:shrink-0 md:self-start md:overflow-hidden`}
     >
       {/* Sticky header */}
       <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-secondary)] p-5">
@@ -1047,7 +1047,7 @@ export default function ChatPage() {
   );
 
   return (
-    <div className="flex h-[calc(100dvh-theme(spacing.16))] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] lg:sticky lg:top-0 lg:h-[calc(100dvh-5rem)]">
+    <div className="flex h-[calc(100dvh-theme(spacing.16))] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] lg:fixed lg:inset-y-0 lg:left-60 lg:right-0 lg:z-10 lg:h-screen lg:rounded-none lg:border-y-0 lg:border-r-0">
       {sidebar}
       {conversationPanel}
     </div>
