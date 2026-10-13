@@ -124,6 +124,18 @@ body {
     var(--bg-primary);
 }
 
+/* Team Chat is a viewport app: prevent the dashboard page scroller from
+   competing with the message-history scroller inside the chat layout. */
+.main-area:has(.team-chat-page) {
+  overflow: hidden;
+}
+
+.main-area:has(.team-chat-page) .page-container {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Every dashboard page gets its padding from here only */
 .page-container {
   max-width: 1400px;
