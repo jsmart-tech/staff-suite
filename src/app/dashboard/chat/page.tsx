@@ -1047,7 +1047,7 @@ export default function ChatPage() {
   );
 
   return (
-    <div className="flex h-[calc(100dvh-theme(spacing.16))] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] lg:h-[calc(100dvh-5rem)]">
+    <div className="flex h-[calc(100dvh-theme(spacing.16))] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] lg:sticky lg:top-0 lg:h-[calc(100dvh-5rem)]">
       {sidebar}
       {conversationPanel}
     </div>
