@@ -1,0 +1,18 @@
+name            = "r2-serve"
+main            = "workers/r2-serve.js"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding     = "BUCKET"
+bucket_name = "blessedpathstaffsuite"
+
+# Attach cdn.<your-domain> in Cloudflare Workers & Pages -> r2-serve ->
+# Settings -> Domains & Routes (Worker Custom Domain/Route). Do not attach
+# this hostname under R2 -> Custom Domains.
+[[routes]]
+pattern = "cdn.<your-domain>/*"
+custom_domain = true
+
+# Uncomment and set for HMAC token verification:
+# [vars]
+# R2_CDN_SECRET = "replace-with-a-strong-random-secret"

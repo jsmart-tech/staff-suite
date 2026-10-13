@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { recipientId, content, attachmentUrl, attachmentName, attachmentMimeType, clientMessageId } = await request.json();
+    const { recipientId, content, attachmentUrl, attachmentName, clientMessageId } = await request.json();
     if (!recipientId || recipientId === user.id || (typeof content !== 'string' && !attachmentUrl) || (!content?.trim() && !attachmentUrl)) return NextResponse.json({ error: 'Choose another staff member and enter a message or attachment.' }, { status: 400 });
     if ((content || '').trim().length > 5000) return NextResponse.json({ error: 'Messages are limited to 5,000 characters.' }, { status: 400 });
 
@@ -28,9 +28,13 @@ export async function POST(request: NextRequest) {
     }
 
     const clientMessageIdValue = typeof clientMessageId === 'string' ? clientMessageId : null;
-    const safeMimeType = typeof attachmentMimeType === 'string' && attachmentMimeType.length < 128
-      ? attachmentMimeType
-      : null;
+    let safeMimeType: string | null = null;
+    if (attachmentUrl) {
+      const publicKey = new URL(attachmentUrl, request.url).pathname.replace(/^\//, '');
+      const verified = await admin.from('verified_uploads').select('mime_type').eq('user_id', user.id).eq('public_key', publicKey).maybeSingle();
+      if (verified.error || !verified.data) return NextResponse.json({ error: 'Attachment must pass server verification before sending.' }, { status: 422 });
+      safeMimeType = verified.data.mime_type;
+    }
     const inserted = await admin.from('direct_messages').insert({
       conversation_id: conversation.id,
       sender_id: user.id,

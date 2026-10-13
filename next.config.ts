@@ -24,6 +24,18 @@ const nextConfig: NextConfig = {
         hostname: '*.supabase.co',
         pathname: '/storage/v1/object/public/**',
       },
+      // CDN domain for R2 — used for chat attachments and profile avatars.
+      // Set NEXT_PUBLIC_CDN_URL=https://cdn.yourdomain.com in your .env.local
+      // and in Vercel environment variables, then add the hostname below.
+      // Example: { protocol: 'https', hostname: 'cdn.blessedpathholdings.com' }
+      ...(process.env.NEXT_PUBLIC_CDN_URL
+        ? [
+            {
+              protocol: 'https' as const,
+              hostname: new URL(process.env.NEXT_PUBLIC_CDN_URL).hostname,
+            },
+          ]
+        : []),
     ],
   },
   experimental: {

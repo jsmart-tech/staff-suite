@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { content, channel, attachmentUrl, attachmentName, attachmentMimeType, clientMessageId } = await request.json();
+    const { content, channel, attachmentUrl, attachmentName, clientMessageId } = await request.json();
     if (!channels.has(channel) || (!content?.trim() && !attachmentUrl)) return NextResponse.json({ error: 'A valid channel message or attachment is required.' }, { status: 400 });
     if ((content || '').trim().length > 5000) return NextResponse.json({ error: 'Messages are limited to 5,000 characters.' }, { status: 400 });
 
@@ -19,9 +19,13 @@ export async function POST(request: NextRequest) {
     const { data: sender } = await admin.from('profiles').select('full_name').eq('id', user.id).single();
     const clientMessageIdValue = typeof clientMessageId === 'string' ? clientMessageId : null;
     // Only store a mime type that was validated server-side during upload (starts with a known prefix)
-    const safeMimeType = typeof attachmentMimeType === 'string' && attachmentMimeType.length < 128
-      ? attachmentMimeType
-      : null;
+    let safeMimeType: string | null = null;
+    if (attachmentUrl) {
+      const publicKey = new URL(attachmentUrl, request.url).pathname.replace(/^\//, '');
+      const verified = await admin.from('verified_uploads').select('mime_type').eq('user_id', user.id).eq('public_key', publicKey).maybeSingle();
+      if (verified.error || !verified.data) return NextResponse.json({ error: 'Attachment must pass server verification before sending.' }, { status: 422 });
+      safeMimeType = verified.data.mime_type;
+    }
     const inserted = await admin.from('chat_messages').insert({
       sender_id: user.id,
       content: (content || '').trim(),   // never embed attachment info in content

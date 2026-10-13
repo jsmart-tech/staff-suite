@@ -30,6 +30,8 @@ type Message = {
   // Local-only fields — never sent to / returned from the server
   _status?: MessageStatus;
   _retryPayload?: RetryPayload;
+  /** blob: URL shown until the CDN image's onLoad fires, then revoked. */
+  _blobUrl?: string | null;
 };
 
 type RetryPayload = {
@@ -65,6 +67,62 @@ function isImage(mimeType?: string | null, name?: string | null): boolean {
 }
 
 // ─── sub-components ─────────────────────────────────────────────────────────
+
+/**
+ * Flicker-free image inside a chat bubble.
+ *
+ * When an optimistic message carries `_blobUrl` (the already-decoded local
+ * preview) AND a CDN `attachment_url`, we display the blob immediately and
+ * preload the CDN image in the background.  Once the CDN image fires onLoad
+ * we swap the visible src and then—and only then—revoke the blob URL.
+ * This means the user sees a smooth, instant preview with zero layout shift.
+ */
+function AttachImageWithBlobFallback({
+  cdnUrl,
+  blobUrl,
+  alt,
+}: {
+  cdnUrl: string;
+  blobUrl?: string | null;
+  alt: string;
+}) {
+  const [displaySrc, setDisplaySrc] = useState<string>(blobUrl || cdnUrl);
+  const blobRef = useRef(blobUrl);
+
+  useEffect(() => {
+    // If there is no blob fallback, nothing to do — CDN src is already set.
+    if (!blobRef.current || displaySrc === cdnUrl) return;
+
+    // Preload CDN in JS so we know exactly when it's ready.
+    const img = new window.Image();
+    img.onload = () => {
+      setDisplaySrc(cdnUrl);
+      if (blobRef.current) {
+        URL.revokeObjectURL(blobRef.current);
+        blobRef.current = null;
+      }
+    };
+    img.onerror = () => {
+      // CDN failed — keep the blob URL visible and don't revoke.
+      setDisplaySrc(cdnUrl); // show broken-image indicator from CDN
+    };
+    img.src = cdnUrl;
+    return () => { img.onload = null; img.onerror = null; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cdnUrl]);
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={displaySrc}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className="max-h-64 max-w-[280px] object-contain sm:max-w-xs"
+      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+    />
+  );
+}
 
 function ChatBubble({
   message,
@@ -126,14 +184,10 @@ function ChatBubble({
             } ${isPending ? 'opacity-60' : ''}`}
           >
             {showImage ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={message.attachment_url!}
+              <AttachImageWithBlobFallback
+                cdnUrl={message.attachment_url!}
+                blobUrl={message._blobUrl}
                 alt={message.attachment_name || 'Attached image'}
-                loading="lazy"
-                decoding="async"
-                className="max-h-64 max-w-[280px] object-contain sm:max-w-xs"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
               />
             ) : (
               <span className="flex items-center gap-2 px-3 py-2 text-sm">
@@ -523,8 +577,12 @@ export default function ChatPage() {
     const clientMessageId = crypto.randomUUID();
     const optimisticId    = `pending-${clientMessageId}`;
 
-    // Snapshot attachment values before clearing state
+    // Snapshot attachment values before clearing state.
+    // `url` is now the stable CDN URL (set after the presigned-PUT completes).
+    // `blobUrl` is the local object URL — kept on the optimistic message so the
+    // bubble can display it instantly while the CDN response is still in-flight.
     const snapUrl      = attachment?.url      ?? null;
+    const snapBlobUrl  = attachment?.blobUrl  ?? null;
     const snapName     = attachment?.name     ?? null;
     const snapMimeType = attachment?.mimeType ?? null;
 
@@ -539,6 +597,9 @@ export default function ChatPage() {
       client_message_id: clientMessageId,
       created_at: new Date().toISOString(),
       _status: 'sending',
+      // Carry the local blob preview so AttachImageWithBlobFallback can show
+      // it immediately and revoke it only after the CDN image loads.
+      _blobUrl: snapBlobUrl,
       profiles: profile
         ? { full_name: profile.full_name, avatar_url: profile.avatar_url, role: profile.role }
         : undefined,
@@ -565,26 +626,33 @@ export default function ChatPage() {
   // XHR ref so we can abort in-flight uploads when the chip is dismissed
   const uploadXhrRef = useRef<XMLHttpRequest | null>(null);
 
-  // ── file upload ───────────────────────────────────────────────────────────
+  // ── file upload (presigned-PUT flow) ─────────────────────────────────────
+  //
+  // Step 1: POST /api/chat/upload-url  — server authenticates, detects MIME
+  //         from magic bytes, generates a presigned PUT URL, and returns the
+  //         stable CDN URL that will be stored on the message row.
+  // Step 2: XHR PUT directly to R2    — browser is in the data path, not the
+  //         Next.js server; progress events work normally.
+  // Step 3: attachment.url is set to cdnUrl — ready for send().
+  // Step 4: send() copies blobUrl into the optimistic message (_blobUrl) so
+  //         AttachImageWithBlobFallback can display it until CDN onLoad fires.
   const uploadAttachment = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    event.target.value = ''; // reset immediately so the same file can be re-picked
+    event.target.value = ''; // reset so the same file can be re-picked
 
     if (file.size > 20 * 1024 * 1024) {
       setError('Files over 20 MB must be uploaded to Google Drive, then shared as a link.');
       return;
     }
 
-    // 1. Create blob URL immediately for instant local preview
+    // 1. Create blob URL immediately for instant local preview in the chip
     const blobUrl = URL.createObjectURL(file);
-    // Keep the browser MIME type as a quick hint for the chip/optimistic bubble;
-    // the server will overwrite this with the magic-byte-detected value on send.
     const browserMime = file.type || 'application/octet-stream';
 
-    // 2. Show chip immediately
+    // 2. Show chip instantly; blobUrl stays as url until presigned step resolves
     setAttachment({
-      url: blobUrl,   // will be swapped to the server URL after upload
+      url: blobUrl,
       name: file.name,
       mimeType: browserMime,
       blobUrl,
@@ -593,54 +661,123 @@ export default function ChatPage() {
     });
     setError('');
 
-    // 3. Upload with XHR for progress events and abort support
-    const xhr = new XMLHttpRequest();
-    uploadXhrRef.current = xhr;
-    const form = new FormData();
-    form.append('file', file);
+    // 3a. Read the first 16 bytes for server-side magic-byte MIME detection
+    const headerSlice = file.slice(0, 16);
+    const headerReader = new FileReader();
+    headerReader.onload = async () => {
+      const fileHeaderBase64 = btoa(
+        String.fromCharCode(...new Uint8Array(headerReader.result as ArrayBuffer))
+      );
 
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        setAttachment((prev) => prev ? { ...prev, progress: e.loaded / e.total } : null);
-      }
-    };
-
-    xhr.onload = () => {
-      uploadXhrRef.current = null;
+      // 3b. Ask the server for a presigned PUT URL + stable CDN URL
+      let presignedUrl: string;
+      let cdnUrl: string;
+      let objectKey: string;
+      let publicKey: string;
+      let serverMime: string;
       try {
-        const result = JSON.parse(xhr.responseText) as { url?: string; name?: string; mimeType?: string; error?: string };
-        if (xhr.status === 200 && result.url) {
-          // Swap blob URL → server URL.
-          // Use the server-detected mimeType (magic bytes) as the authoritative value.
+        const urlRes = await fetch('/api/chat/upload-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileSize: file.size,
+            browserMime,
+            fileHeaderBase64,
+          }),
+        });
+        const urlData = await urlRes.json() as {
+          presignedUrl?: string; cdnUrl?: string; key?: string; publicKey?: string; mimeType?: string; error?: string;
+        };
+        if (!urlRes.ok || !urlData.presignedUrl || !urlData.cdnUrl) {
+          URL.revokeObjectURL(blobUrl);
+          setAttachment(null);
+          setError(urlData.error || 'Could not start upload.');
+          return;
+        }
+        presignedUrl = urlData.presignedUrl;
+        cdnUrl       = urlData.cdnUrl;
+        objectKey    = urlData.key ?? '';
+        publicKey    = (urlData as { publicKey?: string }).publicKey ?? '';
+        if (!objectKey || !publicKey) throw new Error('Upload response did not include object keys.');
+        serverMime   = urlData.mimeType ?? browserMime;
+      } catch {
+        URL.revokeObjectURL(blobUrl);
+        setAttachment(null);
+        setError('Could not start upload. Please try again.');
+        return;
+      }
+
+      // 3c. PUT the file bytes directly to R2 via XHR (keeps progress events)
+      const xhr = new XMLHttpRequest();
+      uploadXhrRef.current = xhr;
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setAttachment((prev) => prev ? { ...prev, progress: e.loaded / e.total } : null);
+        }
+      };
+
+      xhr.onload = async () => {
+        uploadXhrRef.current = null;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          // ── Post-upload MIME verification ──────────────────────────────────
+          // Server reads first 16 bytes from R2 (Range: bytes=0-15) and re-runs
+          // magic-byte detection on the *real* stored bytes — the authoritative
+          // check. If type is not allowed the server deletes the R2 object and
+          // returns 415; we clear the chip. Otherwise we use the returned mimeType.
+          let verifiedMime = serverMime;
+          try {
+            const verifyRes = await fetch('/api/chat/verify-upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key: objectKey, publicKey, fileName: file.name }),
+            });
+            const verifyData = await verifyRes.json() as { ok?: boolean; mimeType?: string; error?: string };
+            if (!verifyRes.ok || !verifyData.ok) {
+              URL.revokeObjectURL(blobUrl);
+              setAttachment(null);
+              setError(verifyData.error ?? 'File type not allowed.');
+              return;
+            }
+            verifiedMime = verifyData.mimeType ?? serverMime;
+          } catch {
+            URL.revokeObjectURL(blobUrl);
+            setAttachment(null);
+            setError('Could not verify upload. Please try again.');
+            return;
+          }
+
+          // Swap chip to CDN URL with the server-verified MIME.
+          // The blobUrl is NOT revoked here; it stays until the CDN image
+          // fires onLoad inside AttachImageWithBlobFallback (flicker-free swap).
           setAttachment((prev) => prev ? {
             ...prev,
-            url: result.url!,
-            name: result.name ?? prev.name,
-            mimeType: result.mimeType ?? prev.mimeType,
+            url: cdnUrl,
+            mimeType: verifiedMime,
             uploading: false,
             progress: 1,
           } : null);
         } else {
           URL.revokeObjectURL(blobUrl);
           setAttachment(null);
-          setError(result.error || 'File upload failed.');
+          setError('File upload failed. Please try again.');
         }
-      } catch {
+      };
+
+      xhr.onerror = () => {
+        uploadXhrRef.current = null;
         URL.revokeObjectURL(blobUrl);
         setAttachment(null);
-        setError('File upload failed.');
-      }
+        setError('File upload failed. Please try again.');
+      };
+
+      xhr.open('PUT', presignedUrl);
+      xhr.setRequestHeader('Content-Type', serverMime);
+      xhr.send(file); // send raw File bytes — no FormData wrapper needed for PUT
     };
 
-    xhr.onerror = () => {
-      uploadXhrRef.current = null;
-      URL.revokeObjectURL(blobUrl);
-      setAttachment(null);
-      setError('File upload failed. Please try again.');
-    };
-
-    xhr.open('POST', '/api/chat/upload');
-    xhr.send(form);
+    headerReader.readAsArrayBuffer(headerSlice);
   }, []);
 
   const attachmentOptions = [
@@ -845,7 +982,7 @@ export default function ChatPage() {
     <aside
       className={`${
         mobileChatOpen ? 'hidden' : 'flex flex-col'
-      } min-h-[620px] w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:flex md:flex-col md:w-60`}
+      } min-h-[620px] w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:sticky md:top-0 md:flex md:h-full md:w-60 md:shrink-0 md:self-start`}
     >
       {/* Sticky header */}
       <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-secondary)] p-5">
@@ -854,7 +991,7 @@ export default function ChatPage() {
       </div>
 
       {/* Scrollable list */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
 
       {/* Channels */}
       <div className="p-3">

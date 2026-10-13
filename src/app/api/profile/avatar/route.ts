@@ -19,9 +19,16 @@ export async function POST(request: Request) {
   if (file.size > 5 * 1024 * 1024) return NextResponse.json({ error: 'Profile images must be 5 MB or smaller.' }, { status: 400 });
 
   const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
-  const key = `avatars/${user.id}/profile.${extension}`;
+  // Include a timestamp so each upload is a NEW R2 object with a distinct URL.
+  // This is the correct approach for immutable caching: old URL stays cached
+  // (harmless — object still exists in R2), new URL is fetched fresh.
+  // The old ?v=Date.now() query-string cache-buster is NOT equivalent because
+  // it re-used the same R2 key and CDN edges cache by path only (query strings
+  // are often ignored). A new key is the only guarantee.
+  const key = `avatars/${user.id}/${Date.now()}.${extension}`;
   await r2.send(new PutObjectCommand({ Bucket: r2Bucket, Key: key, Body: Buffer.from(await file.arrayBuffer()), ContentType: file.type }));
-  const avatarUrl = `/api/files/${key}?v=${Date.now()}`;
+  const cdnBase = process.env.NEXT_PUBLIC_CDN_URL?.replace(/\/$/, '');
+  const avatarUrl = cdnBase ? `${cdnBase}/${key}` : `/api/files/${key}`;
   const { error } = await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', user.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   const { data: admins } = await createAdminClient().from('profiles').select('id').eq('role', 'admin');
