@@ -248,7 +248,6 @@ export default function ChatPage() {
   const [unreadDirectIds, setUnreadDirectIds] = useState<string[]>([]);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
-  const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Prevents double-submit on rapid taps / Enter key
@@ -332,7 +331,9 @@ export default function ChatPage() {
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     // Auto-scroll only when within 120 px of the bottom (user hasn't scrolled up)
     if (distanceFromBottom < 120) {
-      endRef.current?.scrollIntoView({ behavior: 'smooth' });
+      // Scroll only the message history. scrollIntoView() can also scroll
+      // page-level ancestors, which makes the conversation sidebar move.
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     }
   }, [messages]);
 
@@ -854,7 +855,6 @@ export default function ChatPage() {
           />
         ))
       )}
-      <div ref={endRef} />
     </section>
   );
 
