@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Task, Profile, TaskStatus } from '@/types';
@@ -57,6 +57,7 @@ export default function AdminTasksPage() {
   const [comment, setComment] = useState('');
   const [commentSaving, setCommentSaving] = useState(false);
   const [comments, setComments] = useState<Array<{ id: string; body: string; created_at: string; profiles?: { full_name: string | null } }>>([]);
+  const commentsRequestRef = useRef(0);
 
   // Memoized — never recreates the WebSocket connection on re-render
   const supabase = useMemo(() => createClient(), []);
@@ -136,9 +137,15 @@ export default function AdminTasksPage() {
   };
 
   const openTask = async (task: typeof tasks[number]) => {
-    setViewTask(task); setComment('');
+    const requestId = ++commentsRequestRef.current;
+    setViewTask(task);
+    setComment('');
+    // Never render the previous task's thread while the new one loads.
+    setComments([]);
     const response = await fetch(`/api/tasks/${task.id}/comments`);
-    if (response.ok) setComments((await response.json()).comments || []);
+    if (response.ok && requestId === commentsRequestRef.current) {
+      setComments((await response.json()).comments || []);
+    }
   };
 
   const addComment = async () => {
@@ -299,7 +306,11 @@ export default function AdminTasksPage() {
             commentSaving={commentSaving}
             onCommentChange={setComment}
             onAddComment={() => void addComment()}
-            onClose={() => setViewTask(null)}
+            onClose={() => {
+              ++commentsRequestRef.current;
+              setViewTask(null);
+              setComments([]);
+            }}
           />
         )}
         {showModal && (
