@@ -57,6 +57,7 @@ export default function AdminTasksPage() {
   const [comment, setComment] = useState('');
   const [commentSaving, setCommentSaving] = useState(false);
   const [comments, setComments] = useState<Array<{ id: string; body: string; created_at: string; profiles?: { full_name: string | null } }>>([]);
+  const [commentsTaskId, setCommentsTaskId] = useState<string | null>(null);
   const commentsRequestRef = useRef(0);
 
   // Memoized — never recreates the WebSocket connection on re-render
@@ -142,11 +143,22 @@ export default function AdminTasksPage() {
     setComment('');
     // Never render the previous task's thread while the new one loads.
     setComments([]);
+    setCommentsTaskId(null);
     const response = await fetch(`/api/tasks/${task.id}/comments`, { cache: 'no-store' });
-    if (response.ok && requestId === commentsRequestRef.current) {
-      setComments((await response.json()).comments || []);
+    if (response.ok) {
+      const nextComments = (await response.json()).comments || [];
+      if (requestId !== commentsRequestRef.current) return;
+      setComments(nextComments);
+      setCommentsTaskId(task.id);
     }
   };
+
+  const closeTask = useCallback(() => {
+    ++commentsRequestRef.current;
+    setViewTask(null);
+    setComments([]);
+    setCommentsTaskId(null);
+  }, []);
 
   const addComment = async () => {
     if (!viewTask || !comment.trim()) return;
@@ -302,16 +314,12 @@ export default function AdminTasksPage() {
           <TaskDetailPanel
             key={viewTask.id}
             task={viewTask}
-            comments={comments}
+            comments={commentsTaskId === viewTask.id ? comments : []}
             comment={comment}
             commentSaving={commentSaving}
             onCommentChange={setComment}
             onAddComment={() => void addComment()}
-            onClose={() => {
-              ++commentsRequestRef.current;
-              setViewTask(null);
-              setComments([]);
-            }}
+            onClose={closeTask}
           />
         )}
         {showModal && (
