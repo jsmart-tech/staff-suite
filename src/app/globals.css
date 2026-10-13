@@ -124,14 +124,24 @@ body {
     var(--bg-primary);
 }
 
-/* Team Chat is a viewport app: prevent the dashboard page scroller from
-   competing with the message-history scroller inside the chat layout. */
-.main-area:has(.team-chat-page) {
+/* Team Chat is a bounded layout: only its two content lists may scroll. */
+.app-shell:has(.team-chat-page) {
+  height: 100dvh;
+  min-height: 0;
   overflow: hidden;
 }
 
-.main-area:has(.team-chat-page) .page-container {
-  height: 100%;
+.app-shell:has(.team-chat-page) .main-area {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-shell:has(.team-chat-page) .page-container {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
   min-height: 0;
   overflow: hidden;
 }

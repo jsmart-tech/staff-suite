@@ -791,7 +791,7 @@ export default function ChatPage() {
   // ── render ────────────────────────────────────────────────────────────────
 
   const chatHeader = (
-    <header className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-4 sm:px-5">
+    <header className="chat-header flex shrink-0 items-center gap-3 border-b border-[var(--border)] px-4 py-4 sm:px-5">
       <button
         type="button"
         onClick={() => setMobileChatOpen(false)}
@@ -831,7 +831,7 @@ export default function ChatPage() {
         const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
         userScrolledUpRef.current = distanceFromBottom > 120;
       }}
-      className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5"
+      className="chat-message-history min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain p-4 sm:p-5"
     >
       {messages.length === 0 ? (
         <div className="flex h-full min-h-80 flex-col items-center justify-center text-center">
@@ -859,7 +859,7 @@ export default function ChatPage() {
   );
 
   const chatFooter = (
-    <footer className="border-t border-[var(--border)] p-3 sm:p-4">
+    <footer className="chat-composer shrink-0 border-t border-[var(--border)] p-3 sm:p-4">
       {error && (
         <p className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
           {error}
@@ -970,7 +970,7 @@ export default function ChatPage() {
     <main
       className={`${
         mobileChatOpen ? 'fixed inset-0 z-50 flex min-h-[100dvh]' : 'hidden'
-      } min-w-0 flex-1 flex-col bg-[var(--bg-card)] md:static md:flex md:min-h-0`}
+      } chat-panel min-w-0 flex-1 flex-col overflow-hidden bg-[var(--bg-card)] md:static md:flex md:min-h-0`}
     >
       {chatHeader}
       {messageList}
@@ -982,16 +982,15 @@ export default function ChatPage() {
     <aside
       className={`${
         mobileChatOpen ? 'hidden' : 'flex flex-col'
-      } min-h-0 w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:flex md:h-full md:w-60 md:shrink-0 md:self-start md:overflow-hidden`}
+      } conversation-sidebar min-h-0 w-full border-r border-[var(--border)] bg-[var(--bg-secondary)] md:flex md:h-full md:w-60 md:shrink-0 md:self-start md:overflow-hidden`}
     >
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-secondary)] p-5">
+      <div className="shrink-0 border-b border-[var(--border)] bg-[var(--bg-secondary)] p-5">
         <h1 className="font-bold">Team Chat</h1>
         <p className="mt-1 text-xs text-[var(--text-muted)]">Choose a channel or direct message</p>
       </div>
 
       {/* Scrollable list */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="conversation-list min-h-0 flex-1 overflow-y-auto overscroll-contain">
 
       {/* Channels */}
       <div className="p-3">
@@ -1047,7 +1046,7 @@ export default function ChatPage() {
   );
 
   return (
-    <div className="team-chat-page flex h-[calc(100dvh-theme(spacing.16))] min-h-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] lg:grid lg:h-full lg:grid-cols-[15rem_minmax(0,1fr)] lg:rounded-2xl lg:border">
+    <div className="team-chat-page team-chat-layout flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:rounded-2xl lg:border">
       {sidebar}
       {conversationPanel}
     </div>
