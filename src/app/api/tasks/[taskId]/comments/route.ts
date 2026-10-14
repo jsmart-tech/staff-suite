@@ -34,7 +34,8 @@ export async function POST(request: Request, context: { params: Promise<{ taskId
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   const { data: admins } = await admin.from('profiles').select('id, email, full_name').eq('role', 'admin');
   const recipients = caller?.role === 'admin' ? [task.user_id] : (admins || []).map(item => item.id);
-  await createNotifications({ actorId: user.id, recipientIds: recipients, type: 'task_comment', title: `${caller?.role === 'admin' ? 'Admin commented' : 'User replied'} on your task: ${task.title}`, body: body.trim(), href: '/dashboard/notifications', entityType: 'task', entityId: task.id, eventKey: `task-comment:${comment.id}` });
+  const commenterName = caller?.full_name?.trim() || 'A team member';
+  await createNotifications({ actorId: user.id, recipientIds: recipients, type: 'task_comment', title: `${commenterName} replied on your task: ${task.title}`, body: body.trim(), href: '/dashboard/notifications', entityType: 'task', entityId: task.id, eventKey: `task-comment:${comment.id}` });
   const emails = caller?.role === 'admin' ? (await admin.from('profiles').select('email').eq('id', task.user_id).single()).data?.email : (admins || []).map(item => item.email).filter(Boolean);
   const emailList = (Array.isArray(emails) ? emails : emails ? [emails] : []) as string[];
   after(async () => {
