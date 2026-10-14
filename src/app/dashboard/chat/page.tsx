@@ -351,7 +351,7 @@ export default function ChatPage() {
       if (!user) return;
       const [{ data: me }, { data: staff }] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).single(),
-        supabase.from('staff_directory').select('id, full_name, email, role, avatar_url').neq('id', user.id).order('full_name'),
+        supabase.from('staff_directory').select('id, full_name, email, role, avatar_url, invitation_accepted').eq('invitation_accepted', true).neq('id', user.id).order('full_name'),
       ]);
       setProfile(me as Profile);
       setContacts(staff || []);
