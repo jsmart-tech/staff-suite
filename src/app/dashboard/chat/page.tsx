@@ -248,6 +248,7 @@ export default function ChatPage() {
   const [unreadScopes, setUnreadScopes] = useState<string[]>([]);
   const [unreadDirectIds, setUnreadDirectIds] = useState<string[]>([]);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
+  const autoSendAttachmentRef = useRef(false);
   const [conversationSearch, setConversationSearch] = useState('');
 
   const scrollRef = useRef<HTMLElement>(null);
@@ -630,6 +631,15 @@ export default function ChatPage() {
     void dispatchMessage(optimisticId, clientMessageId, endpoint, body);
   }, [sending, content, attachment, profile, active, dispatchMessage]);
 
+  // Once an upload has been verified and the stable attachment URL is ready,
+  // send it automatically. The ref prevents ordinary composer rerenders from
+  // sending an attachment that the user did not just upload.
+  useEffect(() => {
+    if (!autoSendAttachmentRef.current || !attachment || attachment.uploading) return;
+    autoSendAttachmentRef.current = false;
+    void send();
+  }, [attachment, send]);
+
   // XHR ref so we can abort in-flight uploads when the chip is dismissed
   const uploadXhrRef = useRef<XMLHttpRequest | null>(null);
 
@@ -656,6 +666,7 @@ export default function ChatPage() {
     // 1. Create blob URL immediately for instant local preview in the chip
     const blobUrl = URL.createObjectURL(file);
     const browserMime = file.type || 'application/octet-stream';
+    autoSendAttachmentRef.current = true;
 
     // 2. Show chip instantly; blobUrl stays as url until presigned step resolves
     setAttachment({
@@ -912,6 +923,7 @@ export default function ChatPage() {
             type="button"
             aria-label="Remove attachment"
             onClick={() => {
+              autoSendAttachmentRef.current = false;
               if (uploadXhrRef.current) {
                 uploadXhrRef.current.abort();
                 uploadXhrRef.current = null;
