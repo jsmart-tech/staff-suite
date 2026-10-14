@@ -21,7 +21,9 @@ export async function POST(request: NextRequest) {
     // Only store a mime type that was validated server-side during upload (starts with a known prefix)
     let safeMimeType: string | null = null;
     if (attachmentUrl) {
-      const publicKey = new URL(attachmentUrl, request.url).pathname.replace(/^\//, '');
+      const publicKey = new URL(attachmentUrl, request.url).pathname
+        .replace(/^\//, '')
+        .replace(/^api\/files\//, '');
       const verified = await admin.from('verified_uploads').select('mime_type').eq('user_id', user.id).eq('public_key', publicKey).maybeSingle();
       if (verified.error || !verified.data) return NextResponse.json({ error: 'Attachment must pass server verification before sending.' }, { status: 422 });
       safeMimeType = verified.data.mime_type;
