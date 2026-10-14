@@ -905,9 +905,7 @@ export default function ChatPage() {
             : <Paperclip size={13} className="shrink-0" />}
           <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
           {attachment.uploading && (
-            <span className="shrink-0 tabular-nums text-[var(--text-muted)]">
-              {Math.round(attachment.progress * 100)}%
-            </span>
+            <span className="shrink-0 text-[var(--text-muted)]">Uploading…</span>
           )}
           {/* X button always visible — aborts in-flight XHR if still uploading */}
           <button
