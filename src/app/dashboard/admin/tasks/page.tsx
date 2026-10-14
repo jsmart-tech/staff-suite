@@ -56,7 +56,8 @@ export default function AdminTasksPage() {
   const [viewTask, setViewTask] = useState<typeof tasks[number] | null>(null);
   const [comment, setComment] = useState('');
   const [commentSaving, setCommentSaving] = useState(false);
-  const [comments, setComments] = useState<Array<{ id: string; body: string; created_at: string; profiles?: { full_name: string | null } }>>([]);
+  const [currentUserId, setCurrentUserId] = useState('');
+  const [comments, setComments] = useState<Array<{ id: string; author_id: string; body: string; created_at: string; profiles?: { full_name: string | null } }>>([]);
   const [commentsTaskId, setCommentsTaskId] = useState<string | null>(null);
   const commentsRequestRef = useRef(0);
 
@@ -83,8 +84,13 @@ export default function AdminTasksPage() {
   }, [supabase]);
 
   useEffect(() => {
+    const loadCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setCurrentUserId(user.id);
+    };
     void fetchTasks();
     void fetchStaff();
+    void loadCurrentUser();
     // Realtime subscription keeps data live — no polling needed
   }, [fetchTasks, fetchStaff]);
 
@@ -316,6 +322,7 @@ export default function AdminTasksPage() {
               key={viewTask.id}
               task={viewTask}
               comments={commentsTaskId === viewTask.id ? comments : []}
+              currentUserId={currentUserId}
               comment={comment}
               commentSaving={commentSaving}
               onCommentChange={setComment}

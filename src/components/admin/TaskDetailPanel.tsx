@@ -12,6 +12,7 @@ import { FocusTrap } from '@/components/ui/FocusTrap';
 
 type Comment = {
   id: string;
+  author_id: string;
   body: string;
   created_at: string;
   profiles?: { full_name: string | null };
@@ -24,6 +25,7 @@ interface TaskDetailPanelProps {
     description?: string | null;
   };
   comments: Comment[];
+  currentUserId: string;
   comment: string;
   commentSaving: boolean;
   onCommentChange: (value: string) => void;
@@ -34,6 +36,7 @@ interface TaskDetailPanelProps {
 export function TaskDetailPanel({
   task,
   comments,
+  currentUserId,
   comment,
   commentSaving,
   onCommentChange,
@@ -57,7 +60,7 @@ export function TaskDetailPanel({
         exit={{ opacity: 0, y: 16 }}
         className="w-full max-w-2xl"
       >
-        <FocusTrap onEscape={onClose} className="max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--border-bright)] bg-[var(--bg-card)] p-6">
+        <FocusTrap onEscape={onClose} className="flex max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-[var(--border-bright)] bg-[var(--bg-card)] p-6">
 
           {/* Header */}
           <div className="flex items-start justify-between gap-4">
@@ -86,26 +89,26 @@ export function TaskDetailPanel({
           </p>
 
           {/* Comments */}
-          <div className="mt-6 border-t border-[var(--border)] pt-5">
+          <div className="mt-6 flex min-h-0 flex-1 flex-col border-t border-[var(--border)] pt-5">
             <h3 className="flex items-center gap-2 font-semibold">
               <MessageSquare size={16} />
-              Comments
+              Comments <span className="text-xs font-normal text-[var(--text-muted)]">({comments.length})</span>
             </h3>
 
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
               {comments.length > 0 ? (
                 comments.map((item) => (
                   <div
                     key={item.id}
-                    className="rounded-xl bg-[var(--bg-hover)] p-3"
+                    className={`flex ${item.author_id === currentUserId ? 'justify-end' : 'justify-start'}`}
                   >
-                    <p className="text-xs font-semibold">
-                      {item.profiles?.full_name || 'Admin'}
-                    </p>
-                    <p className="mt-1 whitespace-pre-wrap text-sm">{item.body}</p>
-                    <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-                      {new Date(item.created_at).toLocaleString()}
-                    </p>
+                    <div className={`max-w-[85%] rounded-xl p-3 ${item.author_id === currentUserId ? 'rounded-br-md bg-[var(--accent)] text-white' : 'rounded-bl-md bg-[var(--bg-hover)]'}`}>
+                      <p className="text-xs font-semibold">{item.author_id === currentUserId ? 'You' : (item.profiles?.full_name || 'Team member')}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm">{item.body}</p>
+                      <p className={`mt-1 text-[11px] ${item.author_id === currentUserId ? 'text-white/70' : 'text-[var(--text-muted)]'}`}>
+                        {new Date(item.created_at).toLocaleString()}
+                      </p>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -114,7 +117,7 @@ export function TaskDetailPanel({
             </div>
 
             {/* Add comment */}
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex shrink-0 gap-2">
               <textarea
                 value={comment}
                 onChange={(e) => onCommentChange(e.target.value)}
@@ -124,9 +127,8 @@ export function TaskDetailPanel({
                     onAddComment();
                   }
                 }}
-                placeholder="Write a comment… (Ctrl+Enter to send)"
+                placeholder="Write a comment…"
                 aria-label="Add a comment"
-                // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
                 className="input-field min-h-[80px] flex-1 resize-y"
               />
@@ -140,7 +142,7 @@ export function TaskDetailPanel({
                 {commentSaving ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  'Comment'
+                    'Send'
                 )}
               </button>
             </div>
