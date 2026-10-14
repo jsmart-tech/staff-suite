@@ -7,7 +7,7 @@ import { Profile } from '@/types';
 import { getRoleBadgeColor } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import {
-  ArrowLeft, Hash, Send, Users, Search, Plus, Bell, MoreHorizontal, Smile,
+  ArrowLeft, Hash, Send, Users, Search, Bell, MoreHorizontal, Smile,
   Paperclip, X, Image as ImageIcon, Video, FileText, Mic,
   Loader2, CheckCheck, AlertCircle, RotateCcw,
 } from 'lucide-react';
@@ -1054,9 +1054,6 @@ export default function ChatPage() {
             <h1 className="text-lg font-bold tracking-tight">Team Chat</h1>
             <p className="mt-1 text-xs text-[var(--text-muted)]">Choose a channel or direct message</p>
           </div>
-          <button type="button" aria-label="New conversation" className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-white">
-            <Plus size={17} />
-          </button>
         </div>
         <label className="mt-4 flex items-center gap-2 rounded-xl border border-[#353b4c] bg-[#202532] px-3 py-2 text-sm text-[var(--text-muted)]">
           <Search size={15} />
