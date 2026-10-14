@@ -12,13 +12,14 @@
  */
 
 import { S3Client, PutBucketCorsCommand } from '@aws-sdk/client-s3';
-import { config } from 'dotenv';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(__dirname, '../.env.local') });
+// Node 20+ provides a built-in dotenv loader; keep this utility independent
+// from the application's runtime dependencies.
+process.loadEnvFile(resolve(__dirname, '../.env.local'));
 
 const r2 = new S3Client({
   region: 'auto',
