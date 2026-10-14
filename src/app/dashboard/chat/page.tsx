@@ -242,6 +242,7 @@ export default function ChatPage() {
   const [attachment, setAttachment] = useState<PendingAttachment | null>(null);
   const [attachmentKind, setAttachmentKind] = useState<'photo' | 'document' | 'audio' | 'video'>('photo');
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [unreadScopes, setUnreadScopes] = useState<string[]>([]);
@@ -969,9 +970,26 @@ export default function ChatPage() {
           className="min-h-10 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none"
         />
 
-        <button type="button" aria-label="Add emoji" className="hidden rounded-xl p-3 text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-white sm:block">
+        <div className="relative hidden sm:block">
+        <button type="button" aria-label="Add emoji" onClick={() => setEmojiPickerOpen((open) => !open)} className="rounded-xl p-3 text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-white">
           <Smile size={16} />
         </button>
+        {emojiPickerOpen && (
+          <div className="absolute bottom-14 right-0 z-30 grid w-52 grid-cols-6 gap-1 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-3 shadow-2xl">
+            {['😀', '😂', '😍', '👍', '👏', '🙏', '🎉', '🔥', '❤️', '✅', '👀', '💯', '😅', '🤝', '🙌', '✨', '💡', '🚀'].map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => { setContent((current) => `${current}${emoji}`); setEmojiPickerOpen(false); }}
+                className="rounded-lg p-2 text-lg hover:bg-[var(--bg-hover)]"
+                aria-label={`Insert ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+        </div>
 
         {/* Send button — enabled even while uploading; send() will use the
             blob URL as a placeholder and the server URL will be in the DB
