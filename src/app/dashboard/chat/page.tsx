@@ -889,6 +889,17 @@ export default function ChatPage() {
       )}
       {attachment && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-[var(--bg-hover)] px-3 py-2 text-xs">
+          {!attachment.uploading && isImage(attachment.mimeType, attachment.name) && (
+            // Keep the local preview visible while the attachment waits to be
+            // sent; it is revoked only when the message image is finalized or
+            // the user removes the attachment.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={attachment.blobUrl}
+              alt="Attachment preview"
+              className="h-10 w-10 shrink-0 rounded-md object-cover"
+            />
+          )}
           {attachment.uploading
             ? <Loader2 size={13} className="shrink-0 animate-spin text-[var(--accent-violet)]" />
             : <Paperclip size={13} className="shrink-0" />}
