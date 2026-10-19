@@ -39,6 +39,9 @@ export default {
     }
     // Only finalized objects are public; staging objects can never be served.
     if (key.startsWith('staging/')) return new Response('Not Found', { status: 404 });
+    // Direct-message attachments are private: the app serves them through
+    // /api/files after checking conversation membership. Never serve them here.
+    if (key.startsWith('dm/')) return new Response('Not Found', { status: 404 });
     // SVG is deliberately not served: it can contain active script content.
     if (/\.svg$/i.test(key)) return new Response('Unsupported media type', { status: 415 });
 
@@ -106,6 +109,7 @@ export default {
       'ETag': etag,
       'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream',
       'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
       'Content-Length': String(object.size),
       // CORS — required for <img> cross-origin loads from the Vercel app
       'Access-Control-Allow-Origin': '*',

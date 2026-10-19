@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   Mail, Lock, Eye, EyeOff, Loader2, Zap,
-  Users, BarChart3, MessageSquare, CheckCircle, User,
+  Users, BarChart3, MessageSquare, CheckCircle,
   Shield, UserCircle,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -29,14 +29,12 @@ import { createClient } from '@/lib/supabase/client';
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail]           = useState('');
-  const [fullName, setFullName]     = useState('');
   const [password, setPassword]     = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading]       = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [error, setError]           = useState('');
-  const [mode, setMode]             = useState<'login' | 'signup'>('login');
   const [selectedRole, setSelectedRole] = useState<'admin' | 'accountant' | 'employee'>('employee');
   const supabase = createClient();
 
@@ -74,21 +72,12 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) await supabase.from('login_logs').insert({ user_id: user.id, ip_address: null });
-        router.push('/dashboard');
-        router.refresh();
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email, password,
-          options: { data: { full_name: fullName } },
-        });
-        if (error) throw error;
-        setError('✓ Account created! Check your email to confirm, then sign in.');
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) await supabase.from('login_logs').insert({ user_id: user.id, ip_address: null });
+      router.push('/dashboard');
+      router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
@@ -355,12 +344,10 @@ export default function LoginPage() {
               className="text-[1.65rem] font-bold leading-tight mb-2"
               style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
             >
-              {mode === 'login' ? 'Welcome back' : 'Create account'}
+              Welcome back
             </h2>
             <p className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>
-              {mode === 'login'
-                ? 'Sign in to access your workspace'
-                : 'Set up your Blessed Path Staff Suite account'}
+              Sign in to access your workspace
             </p>
           </div>
 
@@ -371,36 +358,6 @@ export default function LoginPage() {
            *   input height controlled by .input-field in globals.css (h-11 / 44px)
            */}
           <form onSubmit={handleAuth} className="space-y-5">
-
-            {/* Full name — signup only */}
-            {mode === 'signup' && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-              >
-                <label
-                  className="block text-[13px] font-medium mb-2"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Full name
-                </label>
-                <div className="relative">
-                  <User
-                    size={14}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2"
-                    style={{ color: 'var(--text-muted)' }}
-                  />
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={e => setFullName(e.target.value)}
-                    placeholder="Your full name"
-                    className="input-field input-with-icon"
-                  />
-                </div>
-              </motion.div>
-            )}
 
             {/* Email */}
             <div>
@@ -463,7 +420,7 @@ export default function LoginPage() {
               </div>
             </div>}
 
-            {mode === 'login' && !showReset && (
+            {!showReset && (
               <div className="flex justify-end -mt-2">
                 <button
                   type="button"
@@ -518,24 +475,16 @@ export default function LoginPage() {
               {loading && <Loader2 size={16} className="animate-spin" />}
               {showReset
                 ? (resetLoading ? 'Sending reset link…' : 'Send reset link')
-                : (loading ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account')}
+                : (loading ? 'Please wait…' : 'Sign In')}
             </button>
           </form>
 
-          {/* ── Toggle login ↔ signup ── */}
-          {/* mt-5 (20px) below the button — matches space-y-5 rhythm */}
+          {/* Accounts are created by admin invitation only — there is no public sign-up. */}
           <p
             className="mt-5 text-center text-[13px]"
             style={{ color: 'var(--text-secondary)' }}
           >
-            {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
-            <button
-              onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); }}
-              className="font-semibold hover:opacity-75 transition-opacity"
-              style={{ color: 'var(--accent-violet)' }}
-            >
-              {mode === 'login' ? 'Sign up' : 'Sign in'}
-            </button>
+            Don&apos;t have an account? Ask your administrator for an invitation.
           </p>
 
         </motion.div>

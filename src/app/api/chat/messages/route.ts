@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { scheduleChatReminder } from '@/lib/qstash';
 import { createNotifications } from '@/lib/notifications';
+import { attachmentUrlFor, publicKeyFromAttachmentUrl } from '@/lib/attachments';
 
 const channels = new Set(['general', 'announcements', 'random', 'hr', 'finance']);
 
@@ -20,19 +21,23 @@ export async function POST(request: NextRequest) {
     const clientMessageIdValue = typeof clientMessageId === 'string' ? clientMessageId : null;
     // Only store a mime type that was validated server-side during upload (starts with a known prefix)
     let safeMimeType: string | null = null;
+    let safeAttachmentUrl: string | null = null;
     if (attachmentUrl) {
-      const publicKey = new URL(attachmentUrl, request.url).pathname
-        .replace(/^\//, '')
-        .replace(/^api\/files\//, '');
+      const publicKey = typeof attachmentUrl === 'string' ? publicKeyFromAttachmentUrl(attachmentUrl, request.url) : null;
+      // Channel messages may only carry channel uploads (chat/…); private
+      // direct-message files (dm/…) can't be re-posted into a channel.
+      if (!publicKey?.startsWith(`chat/${user.id}/`)) return NextResponse.json({ error: 'Attachment must pass server verification before sending.' }, { status: 422 });
       const verified = await admin.from('verified_uploads').select('mime_type').eq('user_id', user.id).eq('public_key', publicKey).maybeSingle();
       if (verified.error || !verified.data) return NextResponse.json({ error: 'Attachment must pass server verification before sending.' }, { status: 422 });
       safeMimeType = verified.data.mime_type;
+      // Store a server-built URL so a client can't point the message at another host.
+      safeAttachmentUrl = attachmentUrlFor(publicKey);
     }
     const inserted = await admin.from('chat_messages').insert({
       sender_id: user.id,
       content: (content || '').trim(),   // never embed attachment info in content
       channel,
-      attachment_url: attachmentUrl || null,
+      attachment_url: safeAttachmentUrl,
       attachment_name: attachmentName || null,
       attachment_mime_type: safeMimeType,
       client_message_id: clientMessageIdValue,

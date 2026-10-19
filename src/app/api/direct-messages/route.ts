@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { scheduleChatReminder } from '@/lib/qstash';
 import { createNotifications } from '@/lib/notifications';
+import { attachmentUrlFor, publicKeyFromAttachmentUrl } from '@/lib/attachments';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,19 +30,22 @@ export async function POST(request: NextRequest) {
 
     const clientMessageIdValue = typeof clientMessageId === 'string' ? clientMessageId : null;
     let safeMimeType: string | null = null;
+    let safeAttachmentUrl: string | null = null;
     if (attachmentUrl) {
-      const publicKey = new URL(attachmentUrl, request.url).pathname
-        .replace(/^\//, '')
-        .replace(/^api\/files\//, '');
+      const publicKey = typeof attachmentUrl === 'string' ? publicKeyFromAttachmentUrl(attachmentUrl, request.url) : null;
+      // Direct messages may only carry private uploads (dm/…), which the public
+      // CDN never serves and /api/files restricts to conversation members.
+      if (!publicKey?.startsWith(`dm/${user.id}/`)) return NextResponse.json({ error: 'Attachment must pass server verification before sending.' }, { status: 422 });
       const verified = await admin.from('verified_uploads').select('mime_type').eq('user_id', user.id).eq('public_key', publicKey).maybeSingle();
       if (verified.error || !verified.data) return NextResponse.json({ error: 'Attachment must pass server verification before sending.' }, { status: 422 });
       safeMimeType = verified.data.mime_type;
+      safeAttachmentUrl = attachmentUrlFor(publicKey);
     }
     const inserted = await admin.from('direct_messages').insert({
       conversation_id: conversation.id,
       sender_id: user.id,
       content: (content || '').trim(),
-      attachment_url: attachmentUrl || null,
+      attachment_url: safeAttachmentUrl,
       attachment_name: attachmentName || null,
       attachment_mime_type: safeMimeType,
       client_message_id: clientMessageIdValue,

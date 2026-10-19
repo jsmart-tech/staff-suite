@@ -642,6 +642,9 @@ export default function ChatPage() {
 
   // XHR ref so we can abort in-flight uploads when the chip is dismissed
   const uploadXhrRef = useRef<XMLHttpRequest | null>(null);
+  // Read inside uploadAttachment (a stable callback) to pick the upload scope.
+  const activeKindRef = useRef(active.kind);
+  useEffect(() => { activeKindRef.current = active.kind; }, [active.kind]);
 
   // ── file upload (presigned-PUT flow) ─────────────────────────────────────
   //
@@ -693,6 +696,7 @@ export default function ChatPage() {
       let objectKey: string;
       let publicKey: string;
       let serverMime: string;
+      let uploadContentType: string;
       try {
         const urlRes = await fetch('/api/chat/upload-url', {
           method: 'POST',
@@ -702,10 +706,11 @@ export default function ChatPage() {
             fileSize: file.size,
             browserMime,
             fileHeaderBase64,
+            scope: activeKindRef.current === 'direct' ? 'dm' : 'chat',
           }),
         });
         const urlData = await urlRes.json() as {
-          presignedUrl?: string; cdnUrl?: string; key?: string; publicKey?: string; mimeType?: string; error?: string;
+          presignedUrl?: string; cdnUrl?: string; key?: string; publicKey?: string; mimeType?: string; uploadContentType?: string; error?: string;
         };
         if (!urlRes.ok || !urlData.presignedUrl || !urlData.cdnUrl) {
           URL.revokeObjectURL(blobUrl);
@@ -719,6 +724,7 @@ export default function ChatPage() {
         publicKey    = (urlData as { publicKey?: string }).publicKey ?? '';
         if (!objectKey || !publicKey) throw new Error('Upload response did not include object keys.');
         serverMime   = urlData.mimeType ?? browserMime;
+        uploadContentType = urlData.uploadContentType ?? 'application/octet-stream';
       } catch {
         URL.revokeObjectURL(blobUrl);
         setAttachment(null);
@@ -749,7 +755,7 @@ export default function ChatPage() {
             const verifyRes = await fetch('/api/chat/verify-upload', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ key: objectKey, publicKey, fileName: file.name }),
+              body: JSON.stringify({ key: objectKey, publicKey }),
             });
             const verifyData = await verifyRes.json() as { ok?: boolean; mimeType?: string; error?: string };
             if (!verifyRes.ok || !verifyData.ok) {
@@ -791,7 +797,8 @@ export default function ChatPage() {
       };
 
       xhr.open('PUT', presignedUrl);
-      xhr.setRequestHeader('Content-Type', serverMime);
+      // Must match the Content-Type signed into the presigned URL.
+      xhr.setRequestHeader('Content-Type', uploadContentType);
       xhr.send(file); // send raw File bytes — no FormData wrapper needed for PUT
     };
 

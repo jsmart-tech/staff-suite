@@ -17,7 +17,8 @@ import { r2, r2Bucket } from '@/lib/r2';
  *    allowlist (e.g. someone PUT a binary executable disguised as a JPEG).
  *    The stored R2 object is deleted before returning so no bad file lingers.
  *
- * The `key` must belong to the authenticated user (enforced by prefix check).
+ * The `key` must be the staging copy of `publicKey` and belong to the
+ * authenticated user (enforced by prefix check).
  */
 
 const ALLOWED_MIME_PREFIXES = [
@@ -82,21 +83,23 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { key, publicKey, fileName } = await request.json() as { key?: string; publicKey?: string; fileName?: string };
+  const { key, publicKey } = await request.json() as { key?: string; publicKey?: string };
 
-  if (!key || typeof key !== 'string' || !publicKey || typeof publicKey !== 'string' || !fileName || typeof fileName !== 'string') {
-    return NextResponse.json({ error: 'key and fileName are required.' }, { status: 400 });
+  if (!key || typeof key !== 'string' || !publicKey || typeof publicKey !== 'string') {
+    return NextResponse.json({ error: 'key and publicKey are required.' }, { status: 400 });
   }
 
-  // Images may already be at their final key; other files must still be in
-  // the staging area until their bytes have been verified.
-  const stagingPrefix = `staging/chat/${user.id}/`;
-  const publicPrefix = `chat/${user.id}/`;
-  const isFinalKey = key.startsWith(publicPrefix) && publicKey === key;
-  if ((!key.startsWith(stagingPrefix) && !isFinalKey) ||
-      !publicKey.startsWith(publicPrefix)) {
+  // Every upload must still be in staging, under the caller's own folder, and
+  // must be promoted to exactly the matching public key.
+  const ownPrefixes = [`chat/${user.id}/`, `dm/${user.id}/`];
+  if (key !== `staging/${publicKey}` ||
+      !ownPrefixes.some((prefix) => publicKey.startsWith(prefix)) ||
+      publicKey.includes('..')) {
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
   }
+  // The extension check uses the server-built key (sanitized at upload-url
+  // time), not a file name the client could change for this request.
+  const fileName = publicKey.split('/').pop() ?? '';
 
   // Fetch the first 16 bytes from R2 using HTTP Range to avoid downloading the
   // entire file just for magic-byte detection.
@@ -134,10 +137,8 @@ export async function POST(request: Request) {
   // pre-upload detection if the client sent an imperfect header sample).
   const authoritativeMime = detectedMime ?? 'application/octet-stream';
   try {
-    if (!isFinalKey) {
-      await r2.send(new CopyObjectCommand({ Bucket: r2Bucket, CopySource: `${r2Bucket}/${key}`, Key: publicKey, ContentType: authoritativeMime, MetadataDirective: 'REPLACE' }));
-      await r2.send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
-    }
+    await r2.send(new CopyObjectCommand({ Bucket: r2Bucket, CopySource: `${r2Bucket}/${key}`, Key: publicKey, ContentType: authoritativeMime, MetadataDirective: 'REPLACE' }));
+    await r2.send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
     const admin = (await import('@/lib/supabase/admin')).createAdminClient();
     const { error } = await admin.from('verified_uploads').insert({ user_id: user.id, staging_key: key, public_key: publicKey, mime_type: authoritativeMime });
     if (error) throw error;

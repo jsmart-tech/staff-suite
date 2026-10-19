@@ -15,12 +15,30 @@ import { createClient } from '@/lib/supabase/server';
  *    window.location.hash client-side and forwards to /accept-invite
  *    with the hash intact so the Supabase JS client can process it.
  */
+/**
+ * Only allow redirects to a path on this site. Rejects absolute URLs,
+ * protocol-relative `//evil.com`, backslash tricks and `javascript:` values.
+ */
+function safeNextPath(value: string | null): string {
+  if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) {
+    return '/dashboard';
+  }
+  try {
+    const base = 'http://local.invalid';
+    const url = new URL(value, base);
+    if (url.origin !== base) return '/dashboard';
+    return url.pathname + url.search;
+  } catch {
+    return '/dashboard';
+  }
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code      = searchParams.get('code');
   const tokenHash = searchParams.get('token_hash');
   const type      = searchParams.get('type');
-  const next      = searchParams.get('next') ?? '/dashboard';
+  const next      = safeNextPath(searchParams.get('next'));
 
   /* ── PKCE flow: exchange the one-time code for a session ── */
   if (code) {
@@ -76,7 +94,7 @@ export async function GET(req: NextRequest) {
       // Hash fragment is only visible to client-side JS.
       // Forward it to the destination so Supabase can process the session.
       var hash = window.location.hash; // e.g. #access_token=...
-      window.location.replace(${JSON.stringify(dest)} + hash);
+      window.location.replace(${JSON.stringify(dest).replace(/</g, '\\u003c')} + hash);
     </script>
   </head>
   <body style="font-family:sans-serif;color:#888;padding:2rem;">
