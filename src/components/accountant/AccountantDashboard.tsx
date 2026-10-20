@@ -1,86 +1,43 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
-import { formatCurrency, getInitials } from '@/lib/utils';
+import { downloadCsv, formatCurrency, formatMonth, lagosCurrentMonth, toCsv } from '@/lib/utils';
+import { ROLE_LABELS, useMonthlyHours } from '@/lib/payroll';
 import { Avatar } from '@/components/ui/Avatar';
-import { DollarSign, Download, Search, TrendingUp, Users, Clock } from 'lucide-react';
-
-interface PayrollRow {
-  user_id: string;
-  full_name: string | null;
-  email: string;
-  department: string | null;
-  avatar_url: string | null;
-  role: string;
-  hourly_rate: number;
-  total_hours: number;
-  total_pay: number;
-}
+import { MonthPicker } from '@/components/ui/MonthPicker';
+import { AlertCircle, Banknote, Download, Search, Users, Clock } from 'lucide-react';
 
 export function AccountantDashboard({ profile }: { profile: Profile }) {
-  const [payroll, setPayroll] = useState<PayrollRow[]>([]);
+  const [month, setMonth] = useState(lagosCurrentMonth);
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [totalPay, setTotalPay] = useState(0);
-  const [totalHours, setTotalHours] = useState(0);
-  const supabase = createClient();
-
-  useEffect(() => {
-    const fetch = async () => {
-      const { data: profiles } = await supabase.from('profiles').select('*').eq('role', 'employee');
-      const { data: tasks } = await supabase.from('tasks').select('user_id, hours_spent');
-
-      const rows: PayrollRow[] = (profiles || []).map((p: Profile) => {
-        const userTasks = (tasks || []).filter(t => t.user_id === p.id);
-        const total_hours = userTasks.reduce((s, t) => s + (t.hours_spent || 0), 0);
-        const total_pay = total_hours * p.hourly_rate;
-        return {
-          user_id: p.id,
-          full_name: p.full_name,
-          email: p.email,
-          department: p.department,
-          avatar_url: p.avatar_url,
-          role: p.role,
-          hourly_rate: p.hourly_rate,
-          total_hours,
-          total_pay,
-        };
-      });
-
-      rows.sort((a, b) => b.total_pay - a.total_pay);
-      setPayroll(rows);
-      setTotalPay(rows.reduce((s, r) => s + r.total_pay, 0));
-      setTotalHours(rows.reduce((s, r) => s + r.total_hours, 0));
-      setLoading(false);
-    };
-    fetch();
-  }, []);
+  const { rows, loading, error } = useMonthlyHours(month);
 
   const filtered = useMemo(() => {
-    if (!search) return payroll;
+    if (!search) return rows;
     const q = search.toLowerCase();
-    return payroll.filter(r =>
+    return rows.filter(r =>
       r.full_name?.toLowerCase().includes(q) ||
       r.email.toLowerCase().includes(q) ||
-      r.department?.toLowerCase().includes(q)
+      r.department?.toLowerCase().includes(q) ||
+      ROLE_LABELS[r.role].toLowerCase().includes(q)
     );
-  }, [search, payroll]);
+  }, [search, rows]);
 
+  const totalPay = filtered.reduce((s, r) => s + r.total_pay, 0);
+  const totalHours = filtered.reduce((s, r) => s + r.total_hours, 0);
+  const staffWithHours = filtered.filter(r => r.total_hours > 0).length;
+
+  // Exports exactly what is on screen: the selected month and current search.
   const exportCSV = () => {
-    const headers = ['Name', 'Email', 'Department', 'Hourly Rate', 'Total Hours', 'Total Pay'];
-    const rows = payroll.map(r => [
-      r.full_name || '', r.email, r.department || '',
-      r.hourly_rate, r.total_hours.toFixed(2), r.total_pay.toFixed(2)
+    const header = ['Month', 'Name', 'Email', 'Role', 'Department', 'Current Hourly Rate (NGN)', 'Total Hours', 'Timer Hours', 'Manual Hours', 'Days Worked', 'Pay (NGN)'];
+    const data = filtered.map(r => [
+      month, r.full_name || '', r.email, ROLE_LABELS[r.role], r.department || '',
+      r.current_rate, r.total_hours, r.timer_hours, r.manual_hours, r.days_worked, r.total_pay,
     ]);
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url;
-    a.download = `payroll-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    const totals = ['', 'TOTAL', '', '', '', '', Number(totalHours.toFixed(2)), '', '', '', Number(totalPay.toFixed(2))];
+    downloadCsv(`payroll-${month}.csv`, toCsv([header, ...data, totals]));
   };
 
   return (
@@ -89,15 +46,25 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
         <h1 className="page-title">
           Welcome, {profile.full_name?.split(' ')[0] || 'Accountant'} 👋
         </h1>
-        <p className="page-subtitle">Financial overview and payroll management</p>
+        <p className="page-subtitle">Monthly payroll for all staff · {formatMonth(month)}</p>
       </motion.div>
+
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <MonthPicker month={month} onChange={setMonth} />
+      </div>
+
+      {error && (
+        <div role="alert" className="mb-6 flex items-start gap-2 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+          <AlertCircle size={16} className="mt-0.5 shrink-0" /> {error}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         {[
-          { label: 'Total Payroll', value: loading ? '—' : formatCurrency(totalPay), icon: DollarSign, color: 'emerald' },
-          { label: 'Total Hours Logged', value: loading ? '—' : `${totalHours.toFixed(1)}h`, icon: Clock, color: 'sky' },
-          { label: 'Active Employees', value: loading ? '—' : payroll.length, icon: Users, color: 'violet' },
+          { label: `Payroll · ${formatMonth(month)}`, value: loading ? '—' : formatCurrency(totalPay), icon: Banknote, color: 'emerald' },
+          { label: 'Hours Logged', value: loading ? '—' : `${totalHours.toFixed(2)}h`, icon: Clock, color: 'sky' },
+          { label: 'Staff With Hours', value: loading ? '—' : `${staffWithHours} of ${filtered.length}`, icon: Users, color: 'violet' },
         ].map(card => (
           <div key={card.label} className={`stat-card ${card.color}`}>
             <div className="flex items-center gap-3 mb-3">
@@ -107,7 +74,6 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
                   color: card.color === 'emerald' ? 'var(--accent-emerald)' : card.color === 'sky' ? 'var(--accent-sky)' : 'var(--accent-violet)'
                 }} />
               </div>
-              <TrendingUp size={14} style={{ color: 'var(--accent-emerald)', marginLeft: 'auto' }} />
             </div>
             <p className="text-2xl font-bold mb-1">{card.value}</p>
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{card.label}</p>
@@ -126,11 +92,12 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search..."
-                className="input-field w-full pl-9 py-2 text-sm sm:w-[180px]"
+                placeholder="Search name, role, department..."
+                aria-label="Search staff"
+                className="input-field w-full pl-9 py-2 text-sm sm:w-[220px]"
               />
             </div>
-            <button onClick={exportCSV} className="btn-secondary w-full py-2 sm:w-auto">
+            <button onClick={exportCSV} disabled={loading || filtered.length === 0} className="btn-secondary w-full py-2 sm:w-auto disabled:opacity-50">
               <Download size={14} /> Export CSV
             </button>
           </div>
@@ -139,41 +106,56 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Department</th>
-                <th>Hourly Rate</th>
-                <th>Hours Logged</th>
-                <th>Total Pay</th>
+                <th>Staff Member</th>
+                <th>Role</th>
+                <th>Current Rate</th>
+                <th>Hours</th>
+                <th>Days Worked</th>
+                <th>Pay</th>
                 <th>Pay %</th>
               </tr>
             </thead>
             <tbody>
               {loading
                 ? Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i}>{Array.from({ length: 6 }).map((_, j) => (
+                    <tr key={i}>{Array.from({ length: 7 }).map((_, j) => (
                       <td key={j}><div className="skeleton h-4 rounded" /></td>
                     ))}</tr>
                   ))
-                : filtered.map((row) => {
+                : filtered.length === 0
+                  ? (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                        {search ? 'No staff match your search.' : `No staff or hours for ${formatMonth(month)}.`}
+                      </td>
+                    </tr>
+                  )
+                  : filtered.map((row) => {
                     const pct = totalPay > 0 ? (row.total_pay / totalPay) * 100 : 0;
                     return (
                       <tr key={row.user_id}>
                         <td>
                           <div className="flex items-center gap-2">
-                          <Avatar src={row.avatar_url} name={row.full_name} size={32} />
+                            <Avatar src={row.avatar_url} name={row.full_name} size={32} />
                             <div>
                               <p className="font-medium text-sm">{row.full_name || 'Unnamed'}</p>
-                              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.email}</p>
+                              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.department || row.email}</p>
                             </div>
                           </div>
                         </td>
-                        <td><span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{row.department || '—'}</span></td>
-                        <td><span className="text-sm font-medium">{formatCurrency(row.hourly_rate)}</span></td>
+                        <td><span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{ROLE_LABELS[row.role]}</span></td>
+                        <td><span className="text-sm font-medium">{formatCurrency(row.current_rate)}</span></td>
                         <td>
                           <span className="text-sm font-semibold" style={{ color: 'var(--accent-sky)' }}>
                             {row.total_hours.toFixed(2)}h
                           </span>
+                          {row.manual_hours !== 0 && (
+                            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }} title="Hours typed in by hand, or carried over from before time tracking">
+                              {row.manual_hours.toFixed(2)}h manual
+                            </p>
+                          )}
                         </td>
+                        <td><span className="text-sm">{row.days_worked}</span></td>
                         <td>
                           <span className="text-base font-bold" style={{ color: 'var(--accent-emerald)' }}>
                             {formatCurrency(row.total_pay)}
@@ -195,11 +177,12 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
                   })
               }
             </tbody>
-            {!loading && (
+            {!loading && filtered.length > 0 && (
               <tfoot>
                 <tr style={{ borderTop: '2px solid var(--border-bright)', background: 'var(--bg-hover)' }}>
                   <td colSpan={3} className="py-3 px-4 font-semibold">Totals</td>
                   <td className="py-3 px-4 font-bold" style={{ color: 'var(--accent-sky)' }}>{totalHours.toFixed(2)}h</td>
+                  <td />
                   <td className="py-3 px-4 font-bold text-base" style={{ color: 'var(--accent-emerald)' }}>{formatCurrency(totalPay)}</td>
                   <td />
                 </tr>
@@ -207,6 +190,9 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
             )}
           </table>
         </div>
+        <p className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+          Pay uses each person&apos;s hourly rate at the time the hours were logged, so it can differ from hours × current rate if a rate changed during the month.
+        </p>
       </motion.div>
     </div>
   );

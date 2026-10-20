@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, Task } from '@/types';
-import { formatHours } from '@/lib/utils';
+import { formatDateOnly, formatHours } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import {
   CheckSquare, Clock, TrendingUp, Play, Pause,
@@ -181,7 +181,7 @@ export function EmployeeDashboard({ profile }: { profile: Profile }) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{task.title}</p>
                         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                          {task.hours_spent.toFixed(2)}h · {new Date(task.date_worked).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                          {task.hours_spent.toFixed(2)}h · {formatDateOnly(task.date_worked)}
                         </p>
                       </div>
                       {task.is_timer_running && (

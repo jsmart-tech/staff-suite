@@ -1,132 +1,79 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { createClient } from '@/lib/supabase/client';
-import { Profile, Task } from '@/types';
-import { formatCurrency } from '@/lib/utils';
+import { daysInMonth, downloadCsv, formatCurrency, formatDateOnly, formatMonth, lagosCurrentMonth, lagosToday, toCsv } from '@/lib/utils';
+import { ROLE_LABELS, useMonthlyHours } from '@/lib/payroll';
 import { Avatar } from '@/components/ui/Avatar';
-import { Download, Search, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
-
-interface HoursRow {
-  profile: Profile;
-  tasks: Task[];
-  totalHours: number;
-  byDate: Record<string, number>;
-}
+import { MonthPicker } from '@/components/ui/MonthPicker';
+import { AlertCircle, Download, Search } from 'lucide-react';
 
 export default function AccountantHoursPage() {
-  const [rows, setRows] = useState<HoursRow[]>([]);
+  const [month, setMonth] = useState(lagosCurrentMonth);
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [weekOffset, setWeekOffset] = useState(0);
-  // Memoized — never recreates WebSocket on re-render
-  const supabase = useMemo(() => createClient(), []);
-
-  const getWeekDays = (offset: number) => {
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay() + 1 + offset * 7);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
-      return d.toISOString().split('T')[0];
-    });
-  };
-
-  const weekDays = getWeekDays(weekOffset);
-
-  const fetchData = useCallback(async () => {
-    const { data: profiles } = await supabase.from('profiles').select('*').eq('role', 'employee');
-    const { data: tasks } = await supabase.from('tasks').select('*');
-    const result: HoursRow[] = (profiles || []).map((p: Profile) => {
-      const userTasks = (tasks || []).filter((t: Task) => t.user_id === p.id);
-      const totalHours = userTasks.reduce((s: number, t: Task) => s + t.hours_spent, 0);
-      const byDate: Record<string, number> = {};
-      userTasks.forEach((t: Task) => {
-        byDate[t.date_worked] = (byDate[t.date_worked] || 0) + t.hours_spent;
-      });
-      return { profile: p as Profile, tasks: userTasks as Task[], totalHours, byDate };
-    });
-    setRows(result);
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
+  const { rows, days, loading, error } = useMonthlyHours(month, { byDay: true });
+  const monthDays = useMemo(() => daysInMonth(month), [month]);
+  const today = lagosToday();
 
   const filtered = useMemo(() => {
     if (!search) return rows;
     const q = search.toLowerCase();
     return rows.filter(r =>
-      r.profile.full_name?.toLowerCase().includes(q) ||
-      r.profile.email.toLowerCase().includes(q) ||
-      r.profile.department?.toLowerCase().includes(q)
+      r.full_name?.toLowerCase().includes(q) ||
+      r.email.toLowerCase().includes(q) ||
+      r.department?.toLowerCase().includes(q) ||
+      ROLE_LABELS[r.role].toLowerCase().includes(q)
     );
   }, [search, rows]);
 
-  const weekLabel = weekOffset === 0 ? 'This Week'
-    : weekOffset === -1 ? 'Last Week'
-    : weekDays[0].substring(0, 10);
+  const dayTotal = (date: string) => filtered.reduce((s, r) => s + (days[r.user_id]?.[date] || 0), 0);
+  const totalHours = filtered.reduce((s, r) => s + r.total_hours, 0);
+  const totalPay = filtered.reduce((s, r) => s + r.total_pay, 0);
 
+  // Same month and search as the table on screen.
   const exportCSV = () => {
-    const header = ['Employee', 'Email', ...weekDays.map(d => new Date(d).toLocaleDateString('en-GB')), 'Total Hours', 'Total Pay'];
-    const data = rows.map(r => [
-      r.profile.full_name || '', r.profile.email,
-      ...weekDays.map(d => (r.byDate[d] || 0).toFixed(2)),
-      r.totalHours.toFixed(2),
-      (r.totalHours * r.profile.hourly_rate).toFixed(2)
+    const header = ['Name', 'Email', 'Role', 'Department', ...monthDays, 'Total Hours', 'Pay (NGN)'];
+    const data = filtered.map(r => [
+      r.full_name || '', r.email, ROLE_LABELS[r.role], r.department || '',
+      ...monthDays.map(d => days[r.user_id]?.[d] || 0),
+      r.total_hours, r.total_pay,
     ]);
-    const csv = [header, ...data].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const a = Object.assign(document.createElement('a'), {
-      href: URL.createObjectURL(blob),
-      download: `hours-${weekDays[0]}.csv`
-    });
-    a.click();
+    const totals = ['TOTAL', '', '', '', ...monthDays.map(d => Number(dayTotal(d).toFixed(2))), Number(totalHours.toFixed(2)), Number(totalPay.toFixed(2))];
+    downloadCsv(`hours-${month}.csv`, toCsv([header, ...data, totals]));
   };
 
   return (
     <div>
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="page-header">
         <h1 className="page-title">Hours Report</h1>
-        <p className="page-subtitle">Weekly work hours breakdown by employee</p>
+        <p className="page-subtitle">Daily hours for every staff member · {formatMonth(month)}</p>
       </motion.div>
 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-          <button onClick={() => setWeekOffset(w => w - 1)} className="p-1 rounded-lg hover:bg-[var(--bg-hover)]"
-            style={{ color: 'var(--text-secondary)' }}>
-            <ChevronLeft size={16} />
-          </button>
-          <div className="flex items-center gap-2 px-2">
-            <Calendar size={14} style={{ color: 'var(--accent-violet)' }} />
-            <span className="text-sm font-medium">{weekLabel}</span>
-          </div>
-          <button onClick={() => setWeekOffset(w => w + 1)} disabled={weekOffset >= 0}
-            className="p-1 rounded-lg hover:bg-[var(--bg-hover)] disabled:opacity-30"
-            style={{ color: 'var(--text-secondary)' }}>
-            <ChevronRight size={16} />
-          </button>
-        </div>
+        <MonthPicker month={month} onChange={setMonth} />
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Filter employees..."
+            placeholder="Filter staff..."
+            aria-label="Filter staff"
             className="input-field pl-9 py-2 text-sm"
             style={{ width: '200px' }}
           />
         </div>
-        <button onClick={exportCSV} className="btn-secondary py-2 ml-auto">
+        <button onClick={exportCSV} disabled={loading || filtered.length === 0} className="btn-secondary py-2 ml-auto disabled:opacity-50">
           <Download size={14} /> Export CSV
         </button>
       </div>
+
+      {error && (
+        <div role="alert" className="mb-5 flex items-start gap-2 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+          <AlertCircle size={16} className="mt-0.5 shrink-0" /> {error}
+        </div>
+      )}
 
       {/* Hours Table */}
       <motion.div
@@ -136,20 +83,20 @@ export default function AccountantHoursPage() {
         className="card p-0 overflow-hidden"
       >
         <div className="overflow-x-auto">
-          <table className="data-table" style={{ minWidth: '900px' }}>
+          <table className="data-table" style={{ minWidth: `${360 + monthDays.length * 56}px` }}>
             <thead>
               <tr>
-                <th className="sticky left-0" style={{ background: 'var(--bg-secondary)', zIndex: 1 }}>Employee</th>
-                {weekDays.map(d => (
-                  <th key={d} className="text-center">
-                    <div>{new Date(d).toLocaleDateString('en-GB', { weekday: 'short' })}</div>
+                <th className="sticky left-0" style={{ background: 'var(--bg-secondary)', zIndex: 1 }}>Staff Member</th>
+                <th className="text-right">Total Hours</th>
+                <th className="text-right">Pay</th>
+                {monthDays.map(d => (
+                  <th key={d} className="text-center" style={d === today ? { color: 'var(--accent-violet)' } : undefined}>
+                    <div>{formatDateOnly(d, { weekday: 'short' })}</div>
                     <div className="font-normal text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                      {new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      {formatDateOnly(d, { day: 'numeric' })}
                     </div>
                   </th>
                 ))}
-                <th className="text-right">Total Hours</th>
-                <th className="text-right">Pay</th>
               </tr>
             </thead>
             <tbody>
@@ -161,77 +108,63 @@ export default function AccountantHoursPage() {
                       ))}
                     </tr>
                   ))
-                : filtered.map(row => {
-                    const weekHours = weekDays.reduce((s, d) => s + (row.byDate[d] || 0), 0);
-                    const weekPay = weekHours * row.profile.hourly_rate;
-                    return (
-                      <tr key={row.profile.id}>
-                        <td className="sticky left-0" style={{ background: 'var(--bg-card)', zIndex: 1 }}>
-                          <div className="flex items-center gap-2">
-                            <Avatar src={row.profile.avatar_url} name={row.profile.full_name} size={28} />
-                            <div>
-                              <p className="font-medium text-sm">{row.profile.full_name || 'Unnamed'}</p>
-                              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.profile.department || row.profile.email}</p>
-                            </div>
+                : filtered.length === 0
+                  ? (
+                    <tr>
+                      <td colSpan={3 + monthDays.length} className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                        {search ? 'No staff match your filter.' : `No staff or hours for ${formatMonth(month)}.`}
+                      </td>
+                    </tr>
+                  )
+                  : filtered.map(row => (
+                    <tr key={row.user_id}>
+                      <td className="sticky left-0" style={{ background: 'var(--bg-card)', zIndex: 1 }}>
+                        <div className="flex items-center gap-2">
+                          <Avatar src={row.avatar_url} name={row.full_name} size={28} />
+                          <div>
+                            <p className="font-medium text-sm">{row.full_name || 'Unnamed'}</p>
+                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{ROLE_LABELS[row.role]}{row.department ? ` · ${row.department}` : ''}</p>
                           </div>
-                        </td>
-                        {weekDays.map(d => {
-                          const h = row.byDate[d] || 0;
-                          const isToday = d === new Date().toISOString().split('T')[0];
-                          return (
-                            <td key={d} className="text-center">
-                              {h > 0 ? (
-                                <span className="font-semibold text-sm" style={{ color: 'var(--accent-sky)' }}>
-                                  {h.toFixed(2)}h
-                                </span>
-                              ) : (
-                                <span style={{ color: 'var(--text-muted)' }}>—</span>
-                              )}
-                              {isToday && <div className="w-1.5 h-1.5 rounded-full mx-auto mt-1"
-                                style={{ background: 'var(--accent-violet)' }} />}
-                            </td>
-                          );
-                        })}
-                        <td className="text-right">
-                          <span className="font-bold text-sm" style={{ color: 'var(--accent-sky)' }}>
-                            {weekHours.toFixed(2)}h
-                          </span>
-                        </td>
-                        <td className="text-right">
-                          <span className="font-bold" style={{ color: 'var(--accent-emerald)' }}>
-                            {formatCurrency(weekPay)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
+                        </div>
+                      </td>
+                      <td className="text-right">
+                        <span className="font-bold text-sm" style={{ color: 'var(--accent-sky)' }}>{row.total_hours.toFixed(2)}h</span>
+                      </td>
+                      <td className="text-right">
+                        <span className="font-bold" style={{ color: 'var(--accent-emerald)' }}>{formatCurrency(row.total_pay)}</span>
+                      </td>
+                      {monthDays.map(d => {
+                        const h = days[row.user_id]?.[d] || 0;
+                        return (
+                          <td key={d} className="text-center">
+                            {h !== 0 ? (
+                              <span className="font-semibold text-sm" style={{ color: 'var(--accent-sky)' }}>{h.toFixed(2)}</span>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
               }
             </tbody>
-            {!loading && (
+            {!loading && filtered.length > 0 && (
               <tfoot>
                 <tr style={{ borderTop: '2px solid var(--border-bright)', background: 'var(--bg-hover)' }}>
                   <td className="py-3 px-4 font-semibold sticky left-0" style={{ background: 'var(--bg-hover)' }}>Team Totals</td>
-                  {weekDays.map(d => {
-                    const dayTotal = filtered.reduce((s, r) => s + (r.byDate[d] || 0), 0);
+                  <td className="text-right py-3 px-4 font-bold" style={{ color: 'var(--accent-sky)' }}>{totalHours.toFixed(2)}h</td>
+                  <td className="text-right py-3 px-4 font-bold" style={{ color: 'var(--accent-emerald)' }}>{formatCurrency(totalPay)}</td>
+                  {monthDays.map(d => {
+                    const total = dayTotal(d);
                     return (
                       <td key={d} className="text-center py-3">
-                        {dayTotal > 0 ? (
-                          <span className="font-semibold text-sm" style={{ color: 'var(--text-secondary)' }}>
-                            {dayTotal.toFixed(1)}h
-                          </span>
-                        ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                        {total !== 0
+                          ? <span className="font-semibold text-sm" style={{ color: 'var(--text-secondary)' }}>{total.toFixed(1)}</span>
+                          : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                       </td>
                     );
                   })}
-                  <td className="text-right py-3 px-4 font-bold" style={{ color: 'var(--accent-sky)' }}>
-                    {filtered.reduce((s, r) => s + weekDays.reduce((ws, d) => ws + (r.byDate[d] || 0), 0), 0).toFixed(2)}h
-                  </td>
-                  <td className="text-right py-3 px-4 font-bold" style={{ color: 'var(--accent-emerald)' }}>
-                    {formatCurrency(filtered.reduce((s, r) => {
-                      const wh = weekDays.reduce((ws, d) => ws + (r.byDate[d] || 0), 0);
-                      return s + wh * r.profile.hourly_rate;
-                    }, 0))}
-                  </td>
                 </tr>
               </tfoot>
             )}

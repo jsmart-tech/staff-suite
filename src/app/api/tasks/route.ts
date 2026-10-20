@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { getSiteUrl, sendNotificationEmail } from '@/lib/email';
 import { createNotifications } from '@/lib/notifications';
+import { isIsoDate, lagosToday } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,12 +23,30 @@ export async function POST(request: NextRequest) {
     const { data: assignee } = await admin.from('profiles').select('email, full_name').eq('id', user_id).single();
     if (!assignee) return NextResponse.json({ error: 'Selected staff member was not found.' }, { status: 404 });
 
-    const { data: task, error } = await admin.from('tasks').insert({
+    const workDate = isIsoDate(date_worked) ? date_worked : lagosToday();
+    if (status && !['in_progress', 'completed', 'blocked'].includes(status)) return NextResponse.json({ error: 'Invalid task status.' }, { status: 400 });
+    if ((start_date && !isIsoDate(start_date)) || (due_date && !isIsoDate(due_date))) return NextResponse.json({ error: 'Invalid date.' }, { status: 400 });
+    const initialHours = Number(hours_spent) || 0;
+    if (initialHours < 0) return NextResponse.json({ error: 'Hours cannot be negative.' }, { status: 400 });
+
+    // Hours always start at 0; any initial hours are recorded below through
+    // set_task_hours so they get the same checks and an audit entry.
+    const inserted = await admin.from('tasks').insert({
       user_id, title: title.trim(), description: description?.trim() || null,
-      status: status || 'in_progress', hours_spent: Number(hours_spent) || 0,
-      date_worked, start_date: start_date || date_worked, due_date: due_date || null, is_timer_running: false,
+      status: status || 'in_progress', hours_spent: 0,
+      date_worked: workDate, start_date: start_date || workDate, due_date: due_date || null, is_timer_running: false,
     }).select().single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (inserted.error) return NextResponse.json({ error: inserted.error.message }, { status: 400 });
+    let task = inserted.data;
+
+    if (initialHours > 0) {
+      const hoursResult = await supabase.rpc('set_task_hours', { p_task_id: task.id, p_total: initialHours, p_work_date: workDate });
+      if (hoursResult.error) {
+        await admin.from('tasks').delete().eq('id', task.id);
+        return NextResponse.json({ error: hoursResult.error.message }, { status: 400 });
+      }
+      task = hoursResult.data;
+    }
 
     try {
       const { data: admins } = await admin.from('profiles').select('id').eq('role', 'admin');

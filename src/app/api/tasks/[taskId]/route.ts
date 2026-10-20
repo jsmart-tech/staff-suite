@@ -3,11 +3,22 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { sendNotificationEmails, getSiteUrl } from '@/lib/email';
 import { createNotifications } from '@/lib/notifications';
+import { isIsoDate } from '@/lib/utils';
+
+const TASK_STATUSES = new Set(['in_progress', 'completed', 'blocked']);
+
+/** Maps errors raised by the time-tracking SQL functions to HTTP responses. */
+function rpcError(error: { code?: string; message: string }) {
+  const status = error.code === '42501' ? 403 : error.code === 'P0002' ? 404 : 400;
+  return NextResponse.json({ error: error.message }, { status });
+}
 
 /**
  * PATCH /api/tasks/[taskId]
  *
- * Employees update their own tasks (status, hours, timer).
+ * Employees update their own tasks. `{ action: 'start_timer' | 'stop_timer' }`
+ * controls the timer; other fields edit the task, and `hours_spent` sets the
+ * task's total hours (recorded as a manual time entry on `date_worked`).
  * After a successful update, all admins receive an email notification
  * so they stay informed of task activity without polling.
  */
@@ -28,7 +39,7 @@ export async function PATCH(
     // Confirm the task belongs to this user
     const { data: task, error: fetchError } = await admin
       .from('tasks')
-      .select('id, title, user_id, status, hours_spent, is_timer_running')
+      .select('id, title, user_id, status, hours_spent, date_worked, is_timer_running')
       .eq('id', taskId)
       .single();
 
@@ -37,23 +48,59 @@ export async function PATCH(
 
     const body = await request.json() as Record<string, unknown>;
 
-    // Safely whitelist only updatable fields for employees
-    const allowed = ['title', 'description', 'status', 'hours_spent', 'date_worked', 'start_date', 'due_date', 'is_timer_running', 'timer_start_time'];
-    const patch: Record<string, unknown> = {};
-    for (const key of allowed) {
-      if (key in body) patch[key] = body[key];
+    // Timer start/stop: the database records the time (see start_task_timer /
+    // stop_task_timer), so elapsed hours never come from the browser.
+    if (body.action === 'start_timer' || body.action === 'stop_timer') {
+      const { data: updated, error } = await supabase.rpc(body.action === 'start_timer' ? 'start_task_timer' : 'stop_task_timer', { p_task_id: taskId });
+      if (error) return rpcError(error);
+      if (task.is_timer_running !== (body.action === 'start_timer')) {
+        await notifyAdmins({ admin, user, task, patch: { is_timer_running: body.action === 'start_timer' } });
+      }
+      return NextResponse.json({ task: updated });
     }
 
-    if (Object.keys(patch).length === 0) {
+    // Field edits. Timer columns are not editable here, and hours go through
+    // set_task_hours, which validates them and records a 'manual' time entry.
+    const patch: Record<string, unknown> = {};
+    if ('title' in body) {
+      if (typeof body.title !== 'string' || !body.title.trim()) return NextResponse.json({ error: 'Task title is required.' }, { status: 400 });
+      patch.title = body.title.trim();
+    }
+    if ('description' in body) patch.description = typeof body.description === 'string' && body.description.trim() ? body.description.trim() : null;
+    if ('status' in body) {
+      if (!TASK_STATUSES.has(String(body.status))) return NextResponse.json({ error: 'Invalid task status.' }, { status: 400 });
+      patch.status = body.status;
+    }
+    for (const key of ['date_worked', 'start_date', 'due_date'] as const) {
+      if (!(key in body)) continue;
+      if (key === 'due_date' && !body[key]) { patch[key] = null; continue; }
+      if (!isIsoDate(body[key])) return NextResponse.json({ error: `Invalid ${key.replace('_', ' ')}.` }, { status: 400 });
+      patch[key] = body[key];
+    }
+
+    const changesHours = 'hours_spent' in body && Number(body.hours_spent) !== Number(task.hours_spent);
+    if (!changesHours && Object.keys(patch).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update.' }, { status: 400 });
     }
 
-    const { data: updated, error: updateError } = await admin
-      .from('tasks')
-      .update(patch)
-      .eq('id', taskId)
-      .select()
-      .single();
+    // Hours first: if they're rejected, nothing else is changed.
+    if (changesHours) {
+      const total = Number(body.hours_spent);
+      if (!Number.isFinite(total)) return NextResponse.json({ error: 'Hours must be a number.' }, { status: 400 });
+      const { error } = await supabase.rpc('set_task_hours', {
+        p_task_id: taskId,
+        p_total: total,
+        p_work_date: (patch.date_worked as string | undefined) ?? task.date_worked,
+      });
+      if (error) return rpcError(error);
+      patch.hours_spent = total; // for the admin notification only
+    }
+
+    const fieldPatch = { ...patch };
+    delete fieldPatch.hours_spent; // already saved by set_task_hours
+    const { data: updated, error: updateError } = Object.keys(fieldPatch).length > 0
+      ? await admin.from('tasks').update(fieldPatch).eq('id', taskId).select().single()
+      : await admin.from('tasks').select().eq('id', taskId).single();
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 });
 

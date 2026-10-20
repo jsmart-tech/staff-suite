@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Task, TaskStatus } from '@/types';
-import { getStatusColor } from '@/lib/utils';
+import { formatDateOnly, getStatusColor, lagosToday } from '@/lib/utils';
 import {
   Plus, Play, Square, CheckCircle, Clock, AlertCircle,
   Trash2, Edit2, X, Loader2, Calendar,
@@ -27,25 +27,32 @@ interface TaskForm {
   due_date: string;
 }
 
-const defaultForm: TaskForm = {
-  title: '',
-  description: '',
-  status: 'in_progress',
-  hours_spent: 0,
-  date_worked: new Date().toISOString().split('T')[0],
-  start_date: new Date().toISOString().split('T')[0],
-  due_date: '',
-};
+// Built when the form opens so "today" is current Lagos date, not the date
+// the page was first loaded (or UTC, which is an hour behind Lagos).
+function makeDefaultForm(): TaskForm {
+  const today = lagosToday();
+  return {
+    title: '',
+    description: '',
+    status: 'in_progress',
+    hours_spent: 0,
+    date_worked: today,
+    start_date: today,
+    due_date: '',
+  };
+}
 
-function hoursSince(startTime: string) {
-  return (Date.now() - new Date(startTime).getTime()) / 3600000;
+async function readError(response: Response, fallback: string) {
+  try { return ((await response.json()) as { error?: string }).error || fallback; } catch { return fallback; }
 }
 
 export default function EmployeeTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<TaskForm>(defaultForm);
+  const [form, setForm] = useState<TaskForm>(makeDefaultForm);
+  const [pageError, setPageError] = useState('');
+  const [formError, setFormError] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -117,37 +124,28 @@ export default function EmployeeTasksPage() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
 
-  const patchTask = async (taskId: string, patch: Record<string, unknown>) => {
-    await fetch(`/api/tasks/${taskId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
-  };
-
-  const handleStartTimer = async (task: Task) => {
-    const now = new Date().toISOString();
-    setTasks(current => current.map(item => item.id === task.id ? { ...item, is_timer_running: true, timer_start_time: now, status: 'in_progress' } : item));
-    await patchTask(task.id, {
-      is_timer_running: true,
-      timer_start_time: now,
-      status: 'in_progress',
-    });
+  // The server records start/stop times and works out the hours itself.
+  const runTimerAction = async (task: Task, action: 'start_timer' | 'stop_timer') => {
+    setPageError('');
+    if (action === 'start_timer') {
+      const now = new Date().toISOString();
+      setTasks(current => current.map(item => item.id === task.id ? { ...item, is_timer_running: true, timer_start_time: now, status: 'in_progress' } : item));
+    }
+    try {
+      const response = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      if (!response.ok) setPageError(await readError(response, 'Could not update the timer. Please try again.'));
+    } catch {
+      setPageError('Could not reach the server. Check your connection and try again.');
+    }
     await fetchTasks();
   };
 
-  const handleStopTimer = async (task: Task) => {
-    if (!task.timer_start_time) return;
-    const elapsed = hoursSince(task.timer_start_time);
-    const newHours = parseFloat((task.hours_spent + elapsed).toFixed(4));
-    setTasks(current => current.map(item => item.id === task.id ? { ...item, is_timer_running: false, timer_start_time: null, hours_spent: newHours } : item));
-    await patchTask(task.id, {
-      is_timer_running: false,
-      timer_start_time: null,
-      hours_spent: newHours,
-    });
-    await fetchTasks();
-  };
+  const handleStartTimer = (task: Task) => runTimerAction(task, 'start_timer');
+  const handleStopTimer = (task: Task) => runTimerAction(task, 'stop_timer');
 
   const openTaskComments = async (task: Task) => {
     setViewTask(task); setComment(''); setComments([]);
@@ -164,41 +162,51 @@ export default function EmployeeTasksPage() {
   const handleSave = async () => {
     if (!form.title.trim()) return;
     setSaving(true);
-    if (editId) {
-      await fetch(`/api/tasks/${editId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: form.title,
-          description: form.description,
-          status: form.status,
-          hours_spent: form.hours_spent,
-          date_worked: form.date_worked,
-          start_date: form.start_date,
-          due_date: form.due_date || null,
-        }),
-      });
-    } else {
-      await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-        user_id: userId,
-        title: form.title,
-        description: form.description,
-        status: form.status,
-        hours_spent: form.hours_spent,
-        date_worked: form.date_worked,
-        start_date: form.start_date,
-        due_date: form.due_date || null,
-        }),
-      });
+    setFormError('');
+    try {
+      const response = editId
+        ? await fetch(`/api/tasks/${editId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: form.title,
+              description: form.description,
+              status: form.status,
+              hours_spent: form.hours_spent,
+              date_worked: form.date_worked,
+              start_date: form.start_date,
+              due_date: form.due_date || null,
+            }),
+          })
+        : await fetch('/api/tasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: userId,
+              title: form.title,
+              description: form.description,
+              status: form.status,
+              hours_spent: form.hours_spent,
+              date_worked: form.date_worked,
+              start_date: form.start_date,
+              due_date: form.due_date || null,
+            }),
+          });
+      // Keep the form open with the reason if the server rejected it
+      // (e.g. more than 24 hours on one day, or a future date).
+      if (!response.ok) {
+        setFormError(await readError(response, 'Could not save the task. Please try again.'));
+        return;
+      }
+      setForm(makeDefaultForm());
+      setShowForm(false);
+      setEditId(null);
+      void fetchTasks();
+    } catch {
+      setFormError('Could not reach the server. Check your connection and try again.');
+    } finally {
+      setSaving(false);
     }
-    setForm(defaultForm);
-    setShowForm(false);
-    setEditId(null);
-    setSaving(false);
-    fetchTasks();
   };
 
   const handleEdit = (task: Task) => {
@@ -212,13 +220,20 @@ export default function EmployeeTasksPage() {
         due_date: task.due_date || '',
     });
     setEditId(task.id);
+    setFormError('');
     setShowForm(true);
   };
 
   const handleDelete = async (id: string) => {
-    await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+    setPageError('');
+    try {
+      const response = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      if (!response.ok) setPageError(await readError(response, 'Could not delete the task.'));
+    } catch {
+      setPageError('Could not reach the server. Check your connection and try again.');
+    }
     setDeleteId(null);
-    fetchTasks();
+    void fetchTasks();
   };
 
   const filtered = filter === 'all' ? tasks : tasks.filter(t => t.status === filter);
@@ -246,12 +261,20 @@ export default function EmployeeTasksPage() {
           </p>
         </div>
         <button
-          onClick={() => { setShowForm(true); setEditId(null); setForm(defaultForm); }}
+          onClick={() => { setShowForm(true); setEditId(null); setForm(makeDefaultForm()); setFormError(''); }}
           className="btn-primary self-start"
         >
           <Plus size={16} /> New Task
         </button>
       </motion.div>
+
+      {pageError && (
+        <div role="alert" className="mb-4 flex items-start gap-2 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <span className="flex-1">{pageError}</span>
+          <button onClick={() => setPageError('')} aria-label="Dismiss error"><X size={14} /></button>
+        </div>
+      )}
 
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-2 mb-6">
@@ -296,7 +319,7 @@ export default function EmployeeTasksPage() {
                   {filter === 'all' ? 'Create your first task to get started' : `No ${filter.replace('_', ' ')} tasks`}
                 </p>
                 {filter === 'all' && (
-                  <button onClick={() => setShowForm(true)} className="btn-primary mx-auto">
+                  <button onClick={() => { setShowForm(true); setEditId(null); setForm(makeDefaultForm()); setFormError(''); }} className="btn-primary mx-auto">
                     <Plus size={15} /> Add Task
                   </button>
                 )}
@@ -365,7 +388,7 @@ export default function EmployeeTasksPage() {
                           <div className="flex items-center gap-1.5">
                             <Calendar size={12} style={{ color: 'var(--text-muted)' }} />
                             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                              {new Date(task.date_worked).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              {formatDateOnly(task.date_worked, { day: 'numeric', month: 'short', year: 'numeric' })}
                             </span>
                           </div>
                         </div>
@@ -490,10 +513,20 @@ export default function EmployeeTasksPage() {
                   <input
                     type="date"
                     value={form.date_worked}
+                    max={lagosToday()}
                     onChange={e => setForm({ ...form, date_worked: e.target.value })}
                     className="input-field"
                   />
+                  <p className="mt-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Hours typed in here are recorded on this date and marked as manual for payroll. Use the timer to track time automatically.
+                  </p>
                 </div>
+                {formError && (
+                  <div role="alert" className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+                    <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                    <span>{formError}</span>
+                  </div>
+                )}
                 <div className="flex gap-3 pt-1">
                   <button onClick={() => { setShowForm(false); setEditId(null); }} className="btn-secondary flex-1">Cancel</button>
                   <button onClick={handleSave} disabled={saving || !form.title.trim()} className="btn-primary flex-1">

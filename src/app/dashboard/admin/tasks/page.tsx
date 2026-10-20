@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Task, Profile, TaskStatus } from '@/types';
-import { getStatusColor } from '@/lib/utils';
+import { formatDateOnly, getStatusColor, lagosToday } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { FocusTrap } from '@/components/ui/FocusTrap';
 import { TaskDetailPanel } from '@/components/admin/TaskDetailPanel';
@@ -31,16 +31,16 @@ interface AssignForm {
   due_date: string;
 }
 
-const defaultForm: AssignForm = {
+const makeDefaultForm = (): AssignForm => ({
   user_id: '',
   title: '',
   description: '',
   status: 'in_progress',
   hours_spent: 0,
-  date_worked: new Date().toISOString().split('T')[0],
-  start_date: new Date().toISOString().split('T')[0],
+  date_worked: lagosToday(),
+  start_date: lagosToday(),
   due_date: '',
-};
+});
 
 export default function AdminTasksPage() {
   const [tasks,        setTasks]        = useState<(Task & { profiles: Pick<Profile, 'full_name' | 'avatar_url' | 'department'> })[]>([]);
@@ -50,7 +50,7 @@ export default function AdminTasksPage() {
   const [dateFilter, setDateFilter] = useState('');
   const [loading,      setLoading]      = useState(true);
   const [showModal,    setShowModal]    = useState(false);
-  const [form,         setForm]         = useState<AssignForm>(defaultForm);
+  const [form,         setForm]         = useState<AssignForm>(makeDefaultForm);
   const [saving,       setSaving]       = useState(false);
   const [saveError,    setSaveError]    = useState('');
   const [viewTask, setViewTask] = useState<typeof tasks[number] | null>(null);
@@ -139,7 +139,7 @@ export default function AdminTasksPage() {
     if (!response.ok) { setSaveError(result.error || 'Unable to assign this task.'); return; }
 
     setShowModal(false);
-    setForm(defaultForm);
+    setForm(makeDefaultForm());
     await fetchTasks(); // refresh list
   };
 
@@ -182,7 +182,7 @@ export default function AdminTasksPage() {
           <p className="page-subtitle">Global overview of all staff tasks and work logs</p>
         </div>
         <button
-          onClick={() => { setShowModal(true); setSaveError(''); setForm(defaultForm); }}
+          onClick={() => { setShowModal(true); setSaveError(''); setForm(makeDefaultForm()); }}
           className="btn-primary"
         >
           <Plus size={16} /> Assign Task
@@ -289,7 +289,7 @@ export default function AdminTasksPage() {
                         </td>
                         <td>
                           <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                            {new Date(task.date_worked).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                            {formatDateOnly(task.date_worked)}
                           </span>
                         </td>
                         <td>
