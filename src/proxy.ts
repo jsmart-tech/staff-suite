@@ -41,7 +41,8 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const mustSetPassword = user?.user_metadata?.must_set_password === true;
+  // Server-only flag set by /api/invite (users can't clear app_metadata themselves).
+  const mustSetPassword = user?.app_metadata?.must_set_password === true;
   const isAuthPage   = pathname === '/login';
   const isApiRequest = pathname.startsWith('/api/');
   const isPublicPage = pathname === '/'
@@ -61,7 +62,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && mustSetPassword && pathname !== '/accept-invite' && pathname !== '/reset-password' && !pathname.startsWith('/auth/')) {
+  if (user && mustSetPassword && pathname !== '/accept-invite' && pathname !== '/reset-password'
+    && !pathname.startsWith('/auth/') && !pathname.startsWith('/api/auth/')) {
     const url = request.nextUrl.clone();
     url.pathname = '/reset-password';
     url.search = '';

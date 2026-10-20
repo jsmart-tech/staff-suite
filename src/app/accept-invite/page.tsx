@@ -47,11 +47,19 @@ export default function AcceptInvitePage() {
         }
         setError(isRecovery ? 'This password reset link is invalid or has expired. Request a new one from the login page.' : 'Invitation link is invalid or has expired. Please ask for a new invite.');
       } else {
-        // Refreshes arrive without a hash, so reuse the current session only
-        // after there is no new token to process.
+        // No token in the URL (a refresh, or a reset link that signed in via
+        // ?code=). Ask the server whether this session may set a password:
+        // only a recent email-link sign-in or an unfinished invite can.
         const { data: { session: existing } } = await supabase.auth.getSession();
-        if (existing) { setSessionReady(true); return; }
-        setError(isRecovery ? 'No password reset session was found. Request a new reset link from the login page.' : 'No invitation token found. Please use the link from your email.');
+        if (existing) {
+          const access = await fetch('/api/auth/set-password', { cache: 'no-store' })
+            .then(r => r.json() as Promise<{ allowed?: boolean }>)
+            .catch(() => ({ allowed: false }));
+          if (access.allowed) { setSessionReady(true); return; }
+          setError('For security, use the password reset link from your email. On the login page, choose "Forgot password" to get a new one.');
+        } else {
+          setError(isRecovery ? 'No password reset session was found. Request a new reset link from the login page.' : 'No invitation token found. Please use the link from your email.');
+        }
       }
       // Show the form anyway so the user sees the error
       setSessionReady(true);
@@ -85,10 +93,15 @@ export default function AcceptInvitePage() {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password, data: { must_set_password: false } });
-      if (error) throw error;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) await supabase.from('profiles').update({ invitation_accepted: true }).eq('id', user.id);
+      // The server checks this session came from an email link (or an
+      // unfinished invite), sets the password and completes the invitation.
+      const response = await fetch('/api/auth/set-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error || 'Could not set your password. Please try again.');
 
       setDone(true);
       // Give user a moment to see the success state, then redirect

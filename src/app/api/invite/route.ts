@@ -28,7 +28,8 @@ export async function POST(req: NextRequest) {
     if (!Number.isFinite(rate) || rate < 0) return NextResponse.json({ error: 'Hourly rate must be a non-negative number.' }, { status: 400 });
 
     const admin = createAdminClient();
-    const metadata = { full_name: full_name || '', role, department: department || '', hourly_rate: rate, must_set_password: true };
+    // Shown in the invite email template only; role and rate are set below.
+    const metadata = { full_name: full_name || '', role, department: department || '', hourly_rate: rate };
     const { data, error } = await admin.auth.admin.generateLink({
       type: 'invite',
       email: email.trim(),
@@ -44,6 +45,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (data.user) {
+      // The "must set a password" flag lives in app_metadata, which only the
+      // server can change (user_metadata can be edited by the user).
+      const { error: flagError } = await admin.auth.admin.updateUserById(data.user.id, {
+        app_metadata: { must_set_password: true },
+      });
+      if (flagError) return NextResponse.json({ error: flagError.message }, { status: 400 });
+
       const { error: profileError } = await admin.from('profiles').upsert({
         id: data.user.id,
         email: email.trim(),
