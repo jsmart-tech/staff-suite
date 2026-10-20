@@ -7,8 +7,8 @@ import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
 import { getInitials, getRoleBadgeColor, formatCurrency } from '@/lib/utils';
 import { User, Mail, Phone, Building, DollarSign, Camera, Loader2, Save, CheckCircle, AlertCircle } from 'lucide-react';
+import { DEPARTMENTS } from '@/lib/constants';
 
-const DEPARTMENTS = ['Engineering', 'Design', 'Marketing', 'Finance', 'Operations', 'HR', 'Sales', 'Legal'];
 
 export default function EmployeeProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);

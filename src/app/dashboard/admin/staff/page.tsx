@@ -4,14 +4,14 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, UserRole } from '@/types';
-import { getRoleBadgeColor, formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDateTime, getRoleBadgeColor } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
+import { DEPARTMENTS } from '@/lib/constants';
 import {
   Search, Plus, Edit2, X, Loader2, Users,
   Mail, Phone, Building, DollarSign, UserCog, Send, Trash2,
 } from 'lucide-react';
 
-const DEPARTMENTS = ['Engineering', 'Design', 'Marketing', 'Finance', 'Operations', 'HR', 'Sales', 'Legal'];
 const ROLES: UserRole[] = ['admin', 'accountant', 'employee'];
 
 const ROLE_INFO = {
@@ -60,7 +60,8 @@ export default function AdminStaffPage() {
   }, [supabase]);
 
   useEffect(() => {
-    void fetchStaff();
+    const first = window.setTimeout(() => { void fetchStaff(); }, 0);
+    return () => window.clearTimeout(first);
   }, [fetchStaff]);
 
   const filtered = useMemo(() => {
@@ -77,23 +78,33 @@ export default function AdminStaffPage() {
     if (!editingProfile) return;
     setSaving(true);
     setError('');
-    const { error } = await supabase.from('profiles').update({
-      full_name: editingProfile.full_name,
-      role: editingProfile.role,
-      department: editingProfile.department,
-      hourly_rate: editingProfile.hourly_rate,
-      phone: editingProfile.phone,
-    }).eq('id', editingProfile.id);
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setSuccess('Profile updated successfully!');
-      setEditingProfile(null);
-      fetchStaff();
-      setTimeout(() => setSuccess(''), 3000);
+    try {
+      // Saved through the server so role/rate changes are validated and audited.
+      const response = await fetch(`/api/users/${editingProfile.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: editingProfile.full_name,
+          role: editingProfile.role,
+          department: editingProfile.department,
+          hourly_rate: editingProfile.hourly_rate,
+          phone: editingProfile.phone,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(result.error || 'Could not update this profile.');
+      } else {
+        setSuccess('Profile updated successfully!');
+        setEditingProfile(null);
+        void fetchStaff();
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch {
+      setError('Could not reach the server. Check your connection and try again.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
 
@@ -273,7 +284,7 @@ export default function AdminStaffPage() {
                       </td>
                       <td>
                         <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                          {new Date(s.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {formatDateTime(s.created_at, { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                       </td>
                       <td>
@@ -326,7 +337,7 @@ export default function AdminStaffPage() {
                 <h3 className="font-semibold">Edit Profile</h3>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{editingProfile.email}</p>
               </div>
-              <button onClick={() => setEditingProfile(null)}
+              <button aria-label="Close" onClick={() => setEditingProfile(null)}
                 className="p-2 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
                 <X size={16} />
               </button>
@@ -438,7 +449,7 @@ export default function AdminStaffPage() {
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>They&apos;ll receive an email with a sign-up link</p>
                 </div>
               </div>
-              <button onClick={() => setShowInvite(false)}
+              <button aria-label="Close" onClick={() => setShowInvite(false)}
                 className="p-2 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
                 <X size={16} />
               </button>

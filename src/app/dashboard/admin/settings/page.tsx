@@ -2,28 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Shield, Database, Save, Loader2, CheckCircle } from 'lucide-react';
+import { Settings, Globe, Save, Loader2, CheckCircle } from 'lucide-react';
 
 interface AppSettings {
   company_name: string;
-  timezone: string;
   work_hours_per_day: number;
-  currency: string;
-  enable_chat: boolean;
-  enable_audit_logs: boolean;
 }
-
-const TIMEZONES = ['Africa/Lagos', 'UTC', 'America/New_York', 'Europe/London', 'Asia/Dubai'];
-const CURRENCIES = ['NGN', 'USD', 'GBP', 'EUR', 'GHS'];
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<AppSettings>({
     company_name: 'Blessed Path Holdings',
-    timezone: 'Africa/Lagos',
     work_hours_per_day: 8,
-    currency: 'NGN',
-    enable_chat: true,
-    enable_audit_logs: true,
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -32,12 +21,17 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const response = await fetch('/api/settings');
-      if (response.ok) {
-        const { settings } = await response.json();
-        if (settings) setSettings((prev) => ({ ...prev, ...settings }));
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const { settings: stored } = await response.json();
+          if (stored) setSettings({ company_name: stored.company_name ?? '', work_hours_per_day: Number(stored.work_hours_per_day) || 8 });
+        }
+      } catch {
+        setSaveError('Could not load settings. Refresh the page to try again.');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     void load();
   }, []);
@@ -65,123 +59,6 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const sections = [
-    {
-      icon: Settings,
-      label: 'Company Settings',
-      color: 'violet',
-      fields: (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Company Name</label>
-            <input
-              type="text"
-              value={settings.company_name}
-              onChange={e => setSettings({ ...settings, company_name: e.target.value })}
-              className="input-field"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Timezone</label>
-              <select
-                value={settings.timezone}
-                onChange={e => setSettings({ ...settings, timezone: e.target.value })}
-                className="input-field"
-              >
-                {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Currency</label>
-              <select
-                value={settings.currency}
-                onChange={e => setSettings({ ...settings, currency: e.target.value })}
-                className="input-field"
-              >
-                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Standard Work Hours / Day</label>
-            <input
-              type="number"
-              value={settings.work_hours_per_day}
-              onChange={e => setSettings({ ...settings, work_hours_per_day: Number(e.target.value) })}
-              className="input-field"
-              min={1}
-              max={24}
-            />
-          </div>
-        </div>
-      ),
-    },
-    {
-      icon: Shield,
-      label: 'Security & Audit',
-      color: 'emerald',
-      fields: (
-        <div className="space-y-4">
-          {[
-            { key: 'enable_audit_logs', label: 'Enable Audit Logs', desc: 'Track all staff login activity' },
-            { key: 'enable_chat', label: 'Enable Team Chat', desc: 'Allow all staff to use the chat feature' },
-          ].map(opt => (
-            <div key={opt.key} className="flex items-start justify-between gap-4 p-4 rounded-xl"
-              style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}>
-              <div>
-                <p className="text-sm font-medium mb-0.5">{opt.label}</p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{opt.desc}</p>
-              </div>
-              <button
-                onClick={() => setSettings({ ...settings, [opt.key]: !settings[opt.key as keyof AppSettings] })}
-                className="relative w-11 h-6 rounded-full transition-colors flex-shrink-0"
-                style={{ background: settings[opt.key as keyof AppSettings] ? 'var(--accent-violet)' : 'var(--border-bright)' }}
-              >
-                <span
-                  className="absolute top-1 w-4 h-4 rounded-full bg-white transition-transform"
-                  style={{ transform: settings[opt.key as keyof AppSettings] ? 'translateX(22px)' : 'translateX(4px)' }}
-                />
-              </button>
-            </div>
-          ))}
-        </div>
-      ),
-    },
-    {
-      icon: Database,
-      label: 'Database Info',
-      color: 'sky',
-      fields: (
-        <div className="space-y-3">
-          {[
-            { label: 'Tables', value: 'profiles, login_logs, tasks, chat_messages' },
-            { label: 'Auth Provider', value: 'Supabase Auth (JWT)' },
-            { label: 'Realtime', value: 'Supabase Realtime (WebSocket)' },
-            { label: 'Storage', value: 'Supabase Storage (avatars bucket)' },
-          ].map(item => (
-            <div key={item.label} className="flex items-center justify-between p-3 rounded-xl"
-              style={{ background: 'var(--bg-hover)' }}>
-              <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
-              <span className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>{item.value}</span>
-            </div>
-          ))}
-        </div>
-      ),
-    },
-  ];
-
-  const colorMap: Record<string, string> = {
-    violet: 'var(--accent-violet)',
-    emerald: 'var(--accent-emerald)',
-    sky: 'var(--accent-sky)',
-  };
-  const bgMap: Record<string, string> = {
-    violet: 'rgba(124,91,246,0.15)',
-    emerald: 'rgba(16,217,138,0.15)',
-    sky: 'rgba(56,189,248,0.15)',
-  };
-
   return (
     <div className="max-w-2xl">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="page-header">
@@ -190,24 +67,62 @@ export default function AdminSettingsPage() {
       </motion.div>
 
       <div className="space-y-5">
-        {sections.map((section, i) => (
-          <motion.div
-            key={section.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="card"
-          >
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: bgMap[section.color] }}>
-                <section.icon size={18} style={{ color: colorMap[section.color] }} />
-              </div>
-              <h2 className="card-title">{section.label}</h2>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(124,91,246,0.15)' }}>
+              <Settings size={18} style={{ color: 'var(--accent-violet)' }} />
             </div>
-            {section.fields}
-          </motion.div>
-        ))}
+            <h2 className="card-title">Company Settings</h2>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="company-name" className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Company Name</label>
+              <input
+                id="company-name"
+                type="text"
+                value={settings.company_name}
+                onChange={e => setSettings({ ...settings, company_name: e.target.value })}
+                className="input-field"
+                maxLength={100}
+              />
+            </div>
+            <div>
+              <label htmlFor="work-hours" className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Standard Work Hours / Day</label>
+              <input
+                id="work-hours"
+                type="number"
+                value={settings.work_hours_per_day}
+                onChange={e => setSettings({ ...settings, work_hours_per_day: Number(e.target.value) })}
+                className="input-field"
+                min={1}
+                max={24}
+              />
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(56,189,248,0.15)' }}>
+              <Globe size={18} style={{ color: 'var(--accent-sky)' }} />
+            </div>
+            <h2 className="card-title">Currency &amp; Time Zone</h2>
+          </div>
+          <div className="space-y-3">
+            {[
+              { label: 'Currency', value: 'US Dollar ($)' },
+              { label: 'Time zone', value: 'Eastern Time — New York (EST/EDT)' },
+            ].map(item => (
+              <div key={item.label} className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'var(--bg-hover)' }}>
+                <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
+                <span className="text-sm font-medium">{item.value}</span>
+              </div>
+            ))}
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              All pay is shown in dollars, and work dates, monthly payroll and the timer&apos;s midnight cut-off follow Eastern time.
+            </p>
+          </div>
+        </motion.div>
 
         {saved && (
           <motion.div
@@ -222,6 +137,7 @@ export default function AdminSettingsPage() {
 
         {saveError && (
           <motion.div
+            role="alert"
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-2 p-3 rounded-xl text-sm"

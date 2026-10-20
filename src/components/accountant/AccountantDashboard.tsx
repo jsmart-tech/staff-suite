@@ -3,14 +3,14 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Profile } from '@/types';
-import { downloadCsv, formatCurrency, formatMonth, lagosCurrentMonth, toCsv } from '@/lib/utils';
+import { downloadCsv, formatCurrency, formatMonth, businessCurrentMonth, toCsv } from '@/lib/utils';
 import { ROLE_LABELS, useMonthlyHours } from '@/lib/payroll';
 import { Avatar } from '@/components/ui/Avatar';
 import { MonthPicker } from '@/components/ui/MonthPicker';
 import { AlertCircle, Banknote, Download, Search, Users, Clock } from 'lucide-react';
 
 export function AccountantDashboard({ profile }: { profile: Profile }) {
-  const [month, setMonth] = useState(lagosCurrentMonth);
+  const [month, setMonth] = useState(businessCurrentMonth);
   const [search, setSearch] = useState('');
   const { rows, loading, error } = useMonthlyHours(month);
 
@@ -31,7 +31,7 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
 
   // Exports exactly what is on screen: the selected month and current search.
   const exportCSV = () => {
-    const header = ['Month', 'Name', 'Email', 'Role', 'Department', 'Current Hourly Rate (NGN)', 'Total Hours', 'Timer Hours', 'Manual Hours', 'Days Worked', 'Pay (NGN)'];
+    const header = ['Month', 'Name', 'Email', 'Role', 'Department', 'Current Hourly Rate (USD)', 'Total Hours', 'Timer Hours', 'Manual Hours', 'Days Worked', 'Pay (USD)'];
     const data = filtered.map(r => [
       month, r.full_name || '', r.email, ROLE_LABELS[r.role], r.department || '',
       r.current_rate, r.total_hours, r.timer_hours, r.manual_hours, r.days_worked, r.total_pay,

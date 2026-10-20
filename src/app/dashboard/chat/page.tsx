@@ -4,236 +4,17 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
-import { getRoleBadgeColor } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import {
   ArrowLeft, Hash, Send, Users, Search, Bell, MoreHorizontal, Smile,
   Paperclip, X, Image as ImageIcon, Video, FileText, Mic,
-  Loader2, CheckCheck, AlertCircle, RotateCcw,
+  Loader2,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { ChatBubble } from '@/components/chat/ChatBubble';
+import {
+  ActiveChat, byCreatedAt, CHANNELS, chatKeyOf, isImage, Message, MessageStatus, PAGE_SIZE, PendingAttachment,
+} from '@/components/chat/types';
 
-const CHANNELS = ['general', 'announcements', 'random', 'hr', 'finance'];
-
-type MessageStatus = 'sending' | 'sent' | 'failed';
-
-type Message = {
-  id: string;
-  sender_id: string;
-  content: string;
-  attachment_url?: string | null;
-  attachment_name?: string | null;
-  attachment_mime_type?: string | null; // populated for optimistic msgs from File.type
-  client_message_id?: string | null;
-  created_at: string;
-  profiles?: Pick<Profile, 'full_name' | 'avatar_url' | 'role'>;
-  // Local-only fields — never sent to / returned from the server
-  _status?: MessageStatus;
-  _retryPayload?: RetryPayload;
-  /** blob: URL shown until the CDN image's onLoad fires, then revoked. */
-  _blobUrl?: string | null;
-};
-
-type RetryPayload = {
-  endpoint: string;
-  body: Record<string, unknown>;
-  clientMessageId: string;
-};
-
-type ActiveChat =
-  | { kind: 'channel'; id: string; label: string }
-  | { kind: 'direct'; id: string; label: string };
-
-// Attachment held in composer state while user is composing / file is uploading
-type PendingAttachment = {
-  /** Server URL once upload completes, blob: URL while uploading */
-  url: string;
-  name: string;
-  mimeType: string;
-  /** blob: URL for instant local preview — always set */
-  blobUrl: string;
-  /** True while the upload XHR is in-flight */
-  uploading: boolean;
-  /** 0–1 upload progress */
-  progress: number;
-};
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-/** Decide if an attachment should render as an inline image. */
-function isImage(mimeType?: string | null, name?: string | null): boolean {
-  if (mimeType) return mimeType.startsWith('image/');
-  return /\.(gif|jpe?g|png|webp|avif|svg|heic|heif)$/i.test(name ?? '');
-}
-
-// ─── sub-components ─────────────────────────────────────────────────────────
-
-/**
- * Flicker-free image inside a chat bubble.
- *
- * When an optimistic message carries `_blobUrl` (the already-decoded local
- * preview) AND a CDN `attachment_url`, we display the blob immediately and
- * preload the CDN image in the background.  Once the CDN image fires onLoad
- * we swap the visible src and then—and only then—revoke the blob URL.
- * This means the user sees a smooth, instant preview with zero layout shift.
- */
-function AttachImageWithBlobFallback({
-  cdnUrl,
-  blobUrl,
-  alt,
-}: {
-  cdnUrl: string;
-  blobUrl?: string | null;
-  alt: string;
-}) {
-  const [displaySrc, setDisplaySrc] = useState<string>(blobUrl || cdnUrl);
-  const blobRef = useRef(blobUrl);
-
-  useEffect(() => {
-    // If there is no blob fallback, nothing to do — CDN src is already set.
-    if (!blobRef.current || displaySrc === cdnUrl) return;
-
-    // Preload CDN in JS so we know exactly when it's ready.
-    const img = new window.Image();
-    img.onload = () => {
-      setDisplaySrc(cdnUrl);
-      if (blobRef.current) {
-        URL.revokeObjectURL(blobRef.current);
-        blobRef.current = null;
-      }
-    };
-    img.onerror = () => {
-      // CDN failed — keep the blob URL visible and don't revoke.
-      setDisplaySrc(cdnUrl); // show broken-image indicator from CDN
-    };
-    img.src = cdnUrl;
-    return () => { img.onload = null; img.onerror = null; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cdnUrl]);
-
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={displaySrc}
-      alt={alt}
-      loading="lazy"
-      decoding="async"
-      className="max-h-64 max-w-[280px] object-contain sm:max-w-xs"
-      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-    />
-  );
-}
-
-function ChatBubble({
-  message,
-  own,
-  onRetry,
-}: {
-  message: Message;
-  own: boolean;
-  onRetry?: (m: Message) => void;
-}) {
-  const hasText    = Boolean(message.content?.trim());
-  const hasAttach  = Boolean(message.attachment_url);
-  const showImage  = hasAttach && isImage(message.attachment_mime_type, message.attachment_name);
-  const isPending  = message._status === 'sending';
-  const isFailed   = message._status === 'failed';
-
-  return (
-    <article className={`flex gap-3 ${own ? 'flex-row-reverse' : ''}`}>
-      <Avatar
-        src={message.profiles?.avatar_url}
-        name={message.profiles?.full_name}
-        size={32}
-        className="mt-auto"
-      />
-
-      <div className={`flex max-w-[82%] flex-col sm:max-w-[72%] ${own ? 'items-end' : 'items-start'}`}>
-        {/* Sender name + role + time */}
-        <div className="mb-1 flex max-w-full items-center gap-2 text-xs">
-          <span className="truncate font-semibold">
-            {message.profiles?.full_name || 'Unknown'}
-          </span>
-          <span className={`badge shrink-0 px-1.5 py-0 text-[9px] ${getRoleBadgeColor(message.profiles?.role || 'employee')}`}>
-            {message.profiles?.role}
-          </span>
-          {!isPending && !isFailed && (
-            <span className="hidden text-[var(--text-muted)] sm:inline">
-              {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
-            </span>
-          )}
-        </div>
-
-        {/* Text bubble */}
-        {hasText && (
-          <p className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-            own ? 'chat-bubble-own' : 'chat-bubble-other'
-          } ${isPending ? 'opacity-60' : ''}`}>
-            {message.content}
-          </p>
-        )}
-
-        {/* Attachment */}
-        {hasAttach && (
-          <a
-            href={isFailed || isPending ? undefined : message.attachment_url!}
-            target="_blank"
-            rel="noreferrer"
-            className={`mt-1 block overflow-hidden rounded-xl border border-[var(--border)] ${
-              own ? 'bg-[rgba(255,255,255,0.12)]' : 'bg-[var(--bg-hover)]'
-            } ${isPending ? 'opacity-60' : ''}`}
-          >
-            {showImage ? (
-              <AttachImageWithBlobFallback
-                cdnUrl={message.attachment_url!}
-                blobUrl={message._blobUrl}
-                alt={message.attachment_name || 'Attached image'}
-              />
-            ) : (
-              <span className="flex items-center gap-2 px-3 py-2 text-sm">
-                <Paperclip size={15} />
-                {message.attachment_name || 'Open attachment'}
-              </span>
-            )}
-          </a>
-        )}
-
-        {/* Message status row — only shown on own messages */}
-        {own && (
-          <div className="mt-0.5 flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-            {isPending && (
-              <><Loader2 size={10} className="animate-spin" /><span>Sending…</span></>
-            )}
-            {isFailed && (
-              <>
-                <AlertCircle size={10} className="text-red-400" />
-                <span className="text-red-400">Failed</span>
-                {onRetry && (
-                  <button
-                    type="button"
-                    onClick={() => onRetry(message)}
-                    className="ml-1 flex items-center gap-0.5 text-[var(--accent-violet)] hover:underline"
-                  >
-                    <RotateCcw size={9} /> Retry
-                  </button>
-                )}
-              </>
-            )}
-            {!isPending && !isFailed && (
-              <CheckCheck size={11} className="text-[var(--accent-violet)]" />
-            )}
-          </div>
-        )}
-      </div>
-    </article>
-  );
-}
-
-// ─── main page ───────────────────────────────────────────────────────────────
-
-const PAGE_SIZE = 50;
-const chatKeyOf = (chat: ActiveChat) => `${chat.kind}:${chat.id}`;
-const byCreatedAt = (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 
 export default function ChatPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -309,11 +90,15 @@ export default function ChatPage() {
   };
 
   const loadUnread = useCallback(async () => {
-    const response = await fetch('/api/chat/unread');
-    if (response.ok) {
-      const result = await response.json();
-      setUnreadScopes(result.scopes || []);
-      setUnreadDirectIds(result.directUserIds || []);
+    try {
+      const response = await fetch('/api/chat/unread');
+      if (response.ok) {
+        const result = await response.json();
+        setUnreadScopes(result.scopes || []);
+        setUnreadDirectIds(result.directUserIds || []);
+      }
+    } catch {
+      // Offline or flaky connection; the next poll retries.
     }
   }, []);
 
@@ -417,10 +202,9 @@ export default function ChatPage() {
       setProfile(me as Profile);
       setContacts(staff || []);
     };
-    void load();
-    void loadUnread();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const first = window.setTimeout(() => { void load(); void loadUnread(); }, 0);
+    return () => window.clearTimeout(first);
+  }, [supabase, loadUnread]);
 
   // ── poll unread every 15 s while the tab is visible ───────────────────────
   useEffect(() => {

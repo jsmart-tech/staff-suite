@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { getSiteUrl, sendNotificationEmail } from '@/lib/email';
 import { createNotifications } from '@/lib/notifications';
-import { isIsoDate, lagosToday } from '@/lib/utils';
+import { isIsoDate, businessToday } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     const { data: assignee } = await admin.from('profiles').select('email, full_name').eq('id', user_id).single();
     if (!assignee) return NextResponse.json({ error: 'Selected staff member was not found.' }, { status: 404 });
 
-    const workDate = isIsoDate(date_worked) ? date_worked : lagosToday();
+    const workDate = isIsoDate(date_worked) ? date_worked : businessToday();
     if (status && !['in_progress', 'completed', 'blocked'].includes(status)) return NextResponse.json({ error: 'Invalid task status.' }, { status: 400 });
     if ((start_date && !isIsoDate(start_date)) || (due_date && !isIsoDate(due_date))) return NextResponse.json({ error: 'Invalid date.' }, { status: 400 });
     const initialHours = Number(hours_spent) || 0;

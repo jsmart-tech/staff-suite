@@ -28,6 +28,8 @@
   --accent-sky:        #aff0e2;
   --accent-amber:      #fff2ca;
   --accent-rose:       #f1958d;
+  /* Solid accent behind white text (e.g. your own comment bubbles): 5.4:1 contrast. */
+  --accent:            #b4473f;
 
   --section-gap: 32px;
   --space-2: 8px;
@@ -297,7 +299,18 @@ body {
 
 .input-field:focus {
   border-color: #f1958d;
-  box-shadow: 0 0 0 3px rgba(124, 91, 246, 0.12);
+  box-shadow: 0 0 0 3px rgba(241, 149, 141, 0.35);
+}
+
+/* 16px on phones stops iOS zooming into fields, so pinch-zoom can stay enabled. */
+@media (max-width: 640px) {
+  .input-field, .input-field::placeholder { font-size: 16px; }
+}
+
+/* Visible keyboard focus for buttons and links. */
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
+  outline: 2px solid #f1958d;
+  outline-offset: 2px;
 }
 
 .input-field::placeholder { color: var(--text-muted); font-size: 13px; }
@@ -318,7 +331,8 @@ textarea.input-field { height: auto; min-height: 100px; resize: vertical; }
   height: 40px;
   padding: 0 20px;
   background: linear-gradient(135deg, #f1958d, #d97870);
-  color: white;
+  /* Dark text on the coral keeps readable contrast (5.9–8:1; white was 2.2:1). */
+  color: #1f1414;
   border: none;
   border-radius: 12px;
   font-size: 14px;
@@ -331,7 +345,7 @@ textarea.input-field { height: auto; min-height: 100px; resize: vertical; }
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 25px rgba(124, 91, 246, 0.35);
+  box-shadow: 0 8px 25px rgba(241, 149, 141, 0.35);
 }
 
 .btn-secondary {

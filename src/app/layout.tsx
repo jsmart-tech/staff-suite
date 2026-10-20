@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale: people must be able to pinch-zoom (WCAG 1.4.4).
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

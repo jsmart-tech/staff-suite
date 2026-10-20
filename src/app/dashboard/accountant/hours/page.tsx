@@ -2,18 +2,18 @@
 
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { daysInMonth, downloadCsv, formatCurrency, formatDateOnly, formatMonth, lagosCurrentMonth, lagosToday, toCsv } from '@/lib/utils';
+import { daysInMonth, downloadCsv, formatCurrency, formatDateOnly, formatMonth, businessCurrentMonth, businessToday, toCsv } from '@/lib/utils';
 import { ROLE_LABELS, useMonthlyHours } from '@/lib/payroll';
 import { Avatar } from '@/components/ui/Avatar';
 import { MonthPicker } from '@/components/ui/MonthPicker';
 import { AlertCircle, Download, Search } from 'lucide-react';
 
 export default function AccountantHoursPage() {
-  const [month, setMonth] = useState(lagosCurrentMonth);
+  const [month, setMonth] = useState(businessCurrentMonth);
   const [search, setSearch] = useState('');
   const { rows, days, loading, error } = useMonthlyHours(month, { byDay: true });
   const monthDays = useMemo(() => daysInMonth(month), [month]);
-  const today = lagosToday();
+  const today = businessToday();
 
   const filtered = useMemo(() => {
     if (!search) return rows;
@@ -32,7 +32,7 @@ export default function AccountantHoursPage() {
 
   // Same month and search as the table on screen.
   const exportCSV = () => {
-    const header = ['Name', 'Email', 'Role', 'Department', ...monthDays, 'Total Hours', 'Pay (NGN)'];
+    const header = ['Name', 'Email', 'Role', 'Department', ...monthDays, 'Total Hours', 'Pay (USD)'];
     const data = filtered.map(r => [
       r.full_name || '', r.email, ROLE_LABELS[r.role], r.department || '',
       ...monthDays.map(d => days[r.user_id]?.[d] || 0),

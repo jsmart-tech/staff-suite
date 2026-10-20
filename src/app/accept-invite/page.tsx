@@ -256,7 +256,7 @@ export default function AcceptInvitePage() {
                       minLength={6}
                       className="input-field pl-10 pr-11"
                     />
-                    <button type="button"
+                    <button aria-label={showPassword ? 'Hide password' : 'Show password'} type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors hover:text-white"
                       style={{ color: 'var(--text-muted)' }}>
@@ -301,7 +301,7 @@ export default function AcceptInvitePage() {
                           : undefined
                       }}
                     />
-                    <button type="button"
+                    <button aria-label={showConfirm ? 'Hide password' : 'Show password'} type="button"
                       onClick={() => setShowConfirm(!showConfirm)}
                       className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors hover:text-white"
                       style={{ color: 'var(--text-muted)' }}>

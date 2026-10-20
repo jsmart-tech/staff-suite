@@ -7,7 +7,6 @@ import { motion } from 'framer-motion';
 import {
   Mail, Lock, Eye, EyeOff, Loader2, Zap,
   Users, BarChart3, MessageSquare, CheckCircle,
-  Shield, UserCircle,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -35,7 +34,6 @@ export default function LoginPage() {
   const [resetLoading, setResetLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [error, setError]           = useState('');
-  const [selectedRole, setSelectedRole] = useState<'admin' | 'accountant' | 'employee'>('employee');
   const supabase = createClient();
 
   /* ── Redirect invite links to the set-password page ──
@@ -58,9 +56,9 @@ export default function LoginPage() {
 
   /* ── Auth handler — untouched ── */
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('error') === 'expired_recovery_link') {
-      setError('This password reset link has expired or has already been used. Request a new one to continue.');
-    }
+    if (new URLSearchParams(window.location.search).get('error') !== 'expired_recovery_link') return;
+    const show = window.setTimeout(() => setError('This password reset link has expired or has already been used. Request a new one to continue.'), 0);
+    return () => window.clearTimeout(show);
   }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -74,8 +72,8 @@ export default function LoginPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) await supabase.from('login_logs').insert({ user_id: user.id, ip_address: null });
+      // Recorded by the server (with the real IP); a logging failure never blocks sign-in.
+      await fetch('/api/auth/login-log', { method: 'POST' }).catch(() => undefined);
       router.push('/dashboard');
       router.refresh();
     } catch (err: unknown) {
@@ -112,34 +110,6 @@ export default function LoginPage() {
     { icon: MessageSquare, label: 'Team Chat',         desc: 'Real-time collaboration',         color: '#38bdf8', bg: 'rgba(56,189,248,0.14)'  },
   ];
 
-  const roles = [
-    {
-      key: 'admin' as const,
-      label: 'Admin',
-      icon: Shield,
-      color: 'var(--accent-violet)',
-      bg: 'rgba(124,91,246,0.12)',
-      description: 'Full access to all modules — staff profiles, task oversight, payroll, audit logs, settings, and team chat.',
-    },
-    {
-      key: 'accountant' as const,
-      label: 'Accountant',
-      icon: BarChart3,
-      color: 'var(--accent-emerald)',
-      bg: 'rgba(16,217,138,0.12)',
-      description: 'Access to task hours, hourly rates, payroll summaries, staff record lookup, and team chat.',
-    },
-    {
-      key: 'employee' as const,
-      label: 'Employee',
-      icon: UserCircle,
-      color: 'var(--accent-sky)',
-      bg: 'rgba(56,189,248,0.12)',
-      description: 'Access to personal task dashboard with live timer, profile management, and team chat.',
-    },
-  ];
-
-  const activeRole = roles.find(r => r.key === selectedRole)!;
   const isSuccess = error.startsWith('✓');
 
   return (
@@ -409,7 +379,7 @@ export default function LoginPage() {
                   minLength={6}
                   className="input-field input-with-icon input-with-icon-right"
                 />
-                <button
+                <button aria-label={showPassword ? 'Hide password' : 'Show password'}
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors hover:text-white"

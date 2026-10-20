@@ -301,7 +301,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
             )}
           </AnimatePresence>
         </div>
-        <button
+        <button aria-label="Sign out"
           onClick={handleSignOut}
           className={cn(
             'flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
@@ -359,7 +359,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
       </motion.aside>
 
       {/* Mobile toggle button */}
-      <button
+      <button aria-label="Open menu"
         type="button"
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-3 right-3 z-50 w-10 h-10 rounded-xl flex items-center justify-center glass-bright"
@@ -386,7 +386,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
               className="lg:hidden fixed left-0 top-0 bottom-0 z-50 w-64 flex flex-col"
               style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}
             >
-              <button
+              <button aria-label="Close menu"
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 className="absolute top-4 right-4 w-8 h-8 rounded-lg flex items-center justify-center"

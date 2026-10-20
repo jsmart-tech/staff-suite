@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, Task } from '@/types';
-import { formatDateOnly, lagosToday } from '@/lib/utils';
+import { businessDayStart, businessToday, formatDateOnly } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import {
   CheckSquare, Clock, TrendingUp, Play,
@@ -24,7 +24,7 @@ export function EmployeeDashboard({ profile }: { profile: Profile }) {
   // Stats come from the time log and exact counts, not from the few tasks
   // shown in "Recent Tasks", so they're right however many tasks there are.
   const fetchTasks = useCallback(async () => {
-    const today = lagosToday();
+    const today = businessToday();
     const [recent, running, entries, completedCount, inProgressCount] = await Promise.all([
       supabase.from('tasks').select('*').eq('user_id', profile.id).order('created_at', { ascending: false }).limit(5),
       supabase.from('tasks').select('*').eq('user_id', profile.id).eq('is_timer_running', true).limit(1).maybeSingle(),
@@ -61,10 +61,10 @@ export function EmployeeDashboard({ profile }: { profile: Profile }) {
     if (!timerStart) return;
     const tick = () => {
       const now = Date.now();
-      const lagosMidnight = new Date(`${lagosToday()}T00:00:00+01:00`).getTime();
+      const dayStart = businessDayStart(businessToday());
       setLiveSeconds(Math.floor((now - new Date(timerStart).getTime()) / 1000));
-      // Only the part of a running session since Lagos midnight counts as today.
-      setLiveTodaySeconds(Math.floor((now - Math.max(lagosMidnight, new Date(timerStart).getTime())) / 1000));
+      // Only the part of a running session since midnight (Eastern) counts as today.
+      setLiveTodaySeconds(Math.floor((now - Math.max(dayStart, new Date(timerStart).getTime())) / 1000));
     };
     const first = window.setTimeout(tick, 0);
     const interval = window.setInterval(tick, 1000);

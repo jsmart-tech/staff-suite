@@ -1,27 +1,14 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentProfile } from '@/lib/auth/current-profile';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { DashboardMain } from '@/components/layout/DashboardMain';
-import { Profile } from '@/types';
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-
+  const { profile } = await getCurrentProfile();
   if (!profile) {
     redirect('/login');
   }
@@ -43,7 +30,7 @@ export default async function DashboardLayout({
      * Individual pages should NOT add their own outer padding.
      */
     <div className="app-shell">
-      <Sidebar profile={profile as Profile} />
+      <Sidebar profile={profile} />
       <DashboardMain>{children}</DashboardMain>
     </div>
   );

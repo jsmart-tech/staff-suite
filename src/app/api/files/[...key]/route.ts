@@ -6,6 +6,8 @@ import { r2, r2Bucket } from '@/lib/r2';
 // Only these types are rendered inline; everything else is forced to download
 // so an uploaded HTML/SVG/script file can never execute on the app origin.
 const INLINE_IMAGE_TYPES = /^image\/(jpeg|png|gif|webp|bmp|tiff|avif|heic|heif)$/i;
+// Media types verify-upload can assign; served inline so <video>/<audio> can play them.
+const INLINE_MEDIA_TYPES = /^(video\/(mp4|quicktime|webm|3gpp|x-msvideo)|audio\/(mpeg|mp4|wav|ogg|flac))$/i;
 
 export async function GET(request: Request, context: { params: Promise<{ key: string[] }> }) {
   const supabase = await createClient();
@@ -35,10 +37,13 @@ export async function GET(request: Request, context: { params: Promise<{ key: st
   }
 
   const ifNoneMatch = request.headers.get('if-none-match') ?? undefined;
+  // Byte ranges let video/audio players seek (Safari won't play video without them).
+  const rangeHeader = request.headers.get('range');
+  const range = rangeHeader && /^bytes=\d*-\d*$/.test(rangeHeader) ? rangeHeader : undefined;
 
   let object;
   try {
-    object = await r2.send(new GetObjectCommand({ Bucket: r2Bucket, Key: objectKey, IfNoneMatch: ifNoneMatch }));
+    object = await r2.send(new GetObjectCommand({ Bucket: r2Bucket, Key: objectKey, IfNoneMatch: ifNoneMatch, Range: range }));
   } catch (error) {
     const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
     if (status === 304) {
@@ -48,6 +53,7 @@ export async function GET(request: Request, context: { params: Promise<{ key: st
       });
     }
     if (status === 404) return new NextResponse('File not found', { status: 404 });
+    if (status === 416) return new NextResponse('Range not satisfiable', { status: 416 });
     throw error;
   }
   if (!object.Body) return new NextResponse('File not found', { status: 404 });
@@ -62,7 +68,10 @@ export async function GET(request: Request, context: { params: Promise<{ key: st
   };
   if (object.ETag) headers.ETag = object.ETag;
   if (object.ContentLength !== undefined) headers['Content-Length'] = String(object.ContentLength);
-  if (!INLINE_IMAGE_TYPES.test(contentType)) headers['Content-Disposition'] = 'attachment';
+  headers['Accept-Ranges'] = 'bytes';
+  if (object.ContentRange) headers['Content-Range'] = object.ContentRange;
+  // Images and verified audio/video display inline; everything else downloads.
+  if (!INLINE_IMAGE_TYPES.test(contentType) && !INLINE_MEDIA_TYPES.test(contentType)) headers['Content-Disposition'] = 'attachment';
 
-  return new NextResponse(object.Body.transformToWebStream(), { headers });
+  return new NextResponse(object.Body.transformToWebStream(), { status: object.ContentRange ? 206 : 200, headers });
 }

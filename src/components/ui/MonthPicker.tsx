@@ -1,11 +1,11 @@
 'use client';
 
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
-import { formatMonth, lagosCurrentMonth, shiftMonth } from '@/lib/utils';
+import { formatMonth, businessCurrentMonth, shiftMonth } from '@/lib/utils';
 
-/** Previous / next month switcher. Months after the current Lagos month are disabled. */
+/** Previous / next month switcher. Months after the current Eastern-time month are disabled. */
 export function MonthPicker({ month, onChange }: { month: string; onChange: (month: string) => void }) {
-  const isCurrent = month >= lagosCurrentMonth();
+  const isCurrent = month >= businessCurrentMonth();
   return (
     <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
       style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>

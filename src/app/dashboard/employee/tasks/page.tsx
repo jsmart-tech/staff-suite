@@ -1,21 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Task, TaskStatus } from '@/types';
-import { formatDateOnly, getStatusColor, lagosToday } from '@/lib/utils';
+import { businessToday, formatDateOnly, getStatusColor } from '@/lib/utils';
+import { TASK_STATUS_OPTIONS } from '@/lib/constants';
+import { TaskDetailPanel } from '@/components/tasks/TaskDetailPanel';
 import {
   Plus, Play, Square, CheckCircle, Clock, AlertCircle,
   Trash2, Edit2, X, Loader2, Calendar,
   MessageSquare,
 } from 'lucide-react';
 
-const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'blocked', label: 'Blocked' },
-];
 
 interface TaskForm {
   title: string;
@@ -27,10 +24,10 @@ interface TaskForm {
   due_date: string;
 }
 
-// Built when the form opens so "today" is current Lagos date, not the date
-// the page was first loaded (or UTC, which is an hour behind Lagos).
+// Built when the form opens so "today" is the current Eastern-time date, not
+// the date the page was first loaded (or UTC, which is 4–5 hours ahead).
 function makeDefaultForm(): TaskForm {
-  const today = lagosToday();
+  const today = businessToday();
   return {
     title: '',
     description: '',
@@ -63,7 +60,7 @@ export default function EmployeeTasksPage() {
   const [comments, setComments] = useState<Array<{ id: string; author_id: string; body: string; created_at: string; profiles?: { full_name: string | null } }>>([]);
   const [comment, setComment] = useState('');
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchTasks = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -76,7 +73,7 @@ export default function EmployeeTasksPage() {
       .order('created_at', { ascending: false });
     setTasks(data as Task[] || []);
     setLoading(false);
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void fetchTasks(); }, 0);
@@ -97,8 +94,8 @@ export default function EmployeeTasksPage() {
         filter: `user_id=eq.${userId}`,
       }, () => { fetchTasks(); })
       .subscribe();
-    return () => { channel.unsubscribe(); };
-  }, [userId, fetchTasks]);
+    return () => { void supabase.removeChannel(channel); };
+  }, [supabase, userId, fetchTasks]);
 
   // Live timer tick
   useEffect(() => {
@@ -439,14 +436,14 @@ export default function EmployeeTasksPage() {
                             {isRunning ? <Square size={15} /> : <Play size={15} />}
                           </button>
                         )}
-                        <button
+                        <button aria-label="Edit task"
                           onClick={() => handleEdit(task)}
                           className="p-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors"
                           style={{ color: 'var(--text-muted)' }}
                         >
                           <Edit2 size={14} />
                         </button>
-                        <button
+                        <button aria-label="Delete task"
                           onClick={() => setDeleteId(task.id)}
                           className="p-2 rounded-lg transition-colors hover:bg-[rgba(244,63,94,0.1)]"
                           style={{ color: 'var(--text-muted)' }}
@@ -475,7 +472,7 @@ export default function EmployeeTasksPage() {
             >
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-bold text-lg">{editId ? 'Edit Task' : 'New Task'}</h3>
-                <button onClick={() => { setShowForm(false); setEditId(null); }}
+                <button aria-label="Close" onClick={() => { setShowForm(false); setEditId(null); }}
                   className="p-2 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }}>
                   <X size={16} />
                 </button>
@@ -521,7 +518,7 @@ export default function EmployeeTasksPage() {
                       onChange={e => setForm({ ...form, status: e.target.value as TaskStatus })}
                       className="input-field"
                     >
-                      {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      {TASK_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                   </div>
                   <div>
@@ -541,7 +538,7 @@ export default function EmployeeTasksPage() {
                   <input
                     type="date"
                     value={form.date_worked}
-                    max={lagosToday()}
+                    max={businessToday()}
                     onChange={e => setForm({ ...form, date_worked: e.target.value })}
                     className="input-field"
                   />
@@ -570,16 +567,17 @@ export default function EmployeeTasksPage() {
 
       <AnimatePresence>
         {viewTask && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={e => { if (e.target === e.currentTarget) closeTaskComments(); }}>
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--border-bright)] bg-[var(--bg-card)] p-6">
-              <div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-widest text-[var(--text-muted)]">Task details</p><h2 className="mt-1 text-xl font-bold">{viewTask.title}</h2></div><button type="button" onClick={closeTaskComments} aria-label="Close task details"><X size={18} /></button></div>
-              <p className="mt-4 whitespace-pre-wrap text-sm text-[var(--text-secondary)]">{viewTask.description || 'No description provided.'}</p>
-              <div className="mt-6 flex min-h-0 flex-1 flex-col border-t border-[var(--border)] pt-5"><h3 className="flex items-center gap-2 font-semibold"><MessageSquare size={16} /> Comments <span className="text-xs font-normal text-[var(--text-muted)]">({comments.length})</span></h3>
-                <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">{comments.length ? comments.map(item => <div key={item.id} className={`flex ${item.author_id === userId ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] rounded-xl p-3 ${item.author_id === userId ? 'rounded-br-md bg-[var(--accent)] text-white' : 'rounded-bl-md bg-[var(--bg-hover)]'}`}><p className="text-xs font-semibold">{item.author_id === userId ? 'You' : (item.profiles?.full_name || 'Team member')}</p><p className="mt-1 whitespace-pre-wrap text-sm">{item.body}</p><p className={`mt-1 text-[11px] ${item.author_id === userId ? 'text-white/70' : 'text-[var(--text-muted)]'}`}>{new Date(item.created_at).toLocaleString()}</p></div></div>) : <p className="text-sm text-[var(--text-muted)]">No comments yet.</p>}</div>
-                <div className="mt-4 flex shrink-0 gap-2"><textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Write a comment..." className="input-field min-h-20 flex-1 resize-y" /><button type="button" onClick={() => void sendComment()} disabled={commentSaving || !comment.trim()} className="btn-primary self-end">{commentSaving ? <Loader2 size={15} className="animate-spin" /> : null}Send</button></div>
-              </div>
-            </motion.div>
-          </motion.div>
+          <TaskDetailPanel
+            key={viewTask.id}
+            task={viewTask}
+            comments={comments}
+            currentUserId={userId}
+            comment={comment}
+            commentSaving={commentSaving}
+            onCommentChange={setComment}
+            onAddComment={() => void sendComment()}
+            onClose={closeTaskComments}
+          />
         )}
       </AnimatePresence>
 

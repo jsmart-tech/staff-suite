@@ -4,21 +4,17 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Task, Profile, TaskStatus } from '@/types';
-import { formatDateOnly, getStatusColor, lagosToday } from '@/lib/utils';
+import { formatDateOnly, getStatusColor, businessToday } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { FocusTrap } from '@/components/ui/FocusTrap';
-import { TaskDetailPanel } from '@/components/admin/TaskDetailPanel';
+import { TaskDetailPanel } from '@/components/tasks/TaskDetailPanel';
+import { TASK_STATUS_OPTIONS } from '@/lib/constants';
 import {
   Search, CheckSquare, Clock, AlertCircle,
   Plus, X, Loader2, User,
   Eye,
 } from 'lucide-react';
 
-const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'completed',   label: 'Completed'   },
-  { value: 'blocked',     label: 'Blocked'     },
-];
 
 interface AssignForm {
   user_id: string;
@@ -37,8 +33,8 @@ const makeDefaultForm = (): AssignForm => ({
   description: '',
   status: 'in_progress',
   hours_spent: 0,
-  date_worked: lagosToday(),
-  start_date: lagosToday(),
+  date_worked: businessToday(),
+  start_date: businessToday(),
   due_date: '',
 });
 
@@ -88,11 +84,13 @@ export default function AdminTasksPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) setCurrentUserId(user.id);
     };
-    void fetchTasks();
-    void fetchStaff();
-    void loadCurrentUser();
-    // Realtime subscription keeps data live — no polling needed
-  }, [fetchTasks, fetchStaff]);
+    const first = window.setTimeout(() => {
+      void fetchTasks();
+      void fetchStaff();
+      void loadCurrentUser();
+    }, 0);
+    return () => window.clearTimeout(first);
+  }, [supabase, fetchTasks, fetchStaff]);
 
   /* ── Filter logic ── */
   const filtered = useMemo(() => {
@@ -378,7 +376,7 @@ export default function AdminTasksPage() {
                     Task will appear instantly in the staff member&apos;s active tasks
                   </p>
                 </div>
-                <button
+                <button aria-label="Close"
                   onClick={() => setShowModal(false)}
                   className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:opacity-70"
                   style={{ background: 'var(--bg-hover)' }}
@@ -454,7 +452,7 @@ export default function AdminTasksPage() {
                       onChange={e => setForm(f => ({ ...f, status: e.target.value as TaskStatus }))}
                       className="input-field text-sm"
                     >
-                      {STATUS_OPTIONS.map(o => (
+                      {TASK_STATUS_OPTIONS.map(o => (
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>

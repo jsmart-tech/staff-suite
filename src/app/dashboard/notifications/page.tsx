@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Bell, CheckCheck, Loader2 } from 'lucide-react';
 import { AppNotification } from '@/types';
+import { formatDateTime } from '@/lib/utils';
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -26,7 +27,10 @@ export default function NotificationsPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const first = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(first);
+  }, [load]);
 
   const markRead = async (ids?: string[]) => {
     const response = await fetch('/api/notifications', {
@@ -64,7 +68,7 @@ export default function NotificationsPage() {
             <Link href={notification.href} onClick={() => { if (!notification.read_at) void markRead([notification.id]); }}>
             <div className="flex items-start justify-between gap-4"><p className="font-semibold">{notification.title}</p>{!notification.read_at && <span className="mt-1 h-2 w-2 rounded-full bg-[var(--accent-rose)]" />}</div>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">{notification.body}</p>
-            <p className="mt-2 text-xs text-[var(--text-muted)]">{new Date(notification.created_at).toLocaleString()}</p>
+            <p className="mt-2 text-xs text-[var(--text-muted)]">{formatDateTime(notification.created_at)}</p>
             </Link>
             {notification.type === 'task_comment' && notification.entity_id && <div className="mt-4"><button type="button" onClick={() => setReplyFor(replyFor === notification.id ? null : notification.id)} className="text-sm font-semibold text-[var(--accent-violet)]">Reply to comment</button>{replyFor === notification.id && <div className="mt-2 flex gap-2"><textarea value={reply} onChange={e => setReply(e.target.value)} placeholder="Write a reply..." className="input-field min-h-16 flex-1" /><button type="button" onClick={() => void sendReply(notification)} className="btn-primary self-end">Send</button></div>}</div>}
           </div>

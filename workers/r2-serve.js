@@ -115,7 +115,10 @@ export default {
       'Access-Control-Allow-Origin': '*',
       'Vary': 'Origin',
     });
-    if (!/^image\/(jpeg|png|gif|webp|bmp|tiff|avif|heic|heif)$/i.test(object.httpMetadata?.contentType || '')) {
+    const servedType = object.httpMetadata?.contentType || '';
+    // Images and verified audio/video display inline; everything else downloads.
+    if (!/^image\/(jpeg|png|gif|webp|bmp|tiff|avif|heic|heif)$/i.test(servedType) &&
+        !/^(video\/(mp4|quicktime|webm|3gpp|x-msvideo)|audio\/(mpeg|mp4|wav|ogg|flac))$/i.test(servedType)) {
       headers.set('Content-Disposition', 'attachment');
     }
 

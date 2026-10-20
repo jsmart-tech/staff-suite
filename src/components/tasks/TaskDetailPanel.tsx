@@ -3,12 +3,13 @@
 /**
  * TaskDetailPanel
  * Slide-in modal that shows task description + comment thread.
- * Extracted from admin/tasks/page.tsx to keep that file readable.
+ * Shared by the admin and employee task pages.
  */
 
 import { motion } from 'framer-motion';
 import { X, MessageSquare, Loader2 } from 'lucide-react';
 import { FocusTrap } from '@/components/ui/FocusTrap';
+import { formatDateTime } from '@/lib/utils';
 
 type Comment = {
   id: string;
@@ -106,7 +107,7 @@ export function TaskDetailPanel({
                       <p className="text-xs font-semibold">{item.author_id === currentUserId ? 'You' : (item.profiles?.full_name || 'Team member')}</p>
                       <p className="mt-1 whitespace-pre-wrap text-sm">{item.body}</p>
                       <p className={`mt-1 text-[11px] ${item.author_id === currentUserId ? 'text-white/70' : 'text-[var(--text-muted)]'}`}>
-                        {new Date(item.created_at).toLocaleString()}
+                        {formatDateTime(item.created_at)}
                       </p>
                     </div>
                   </div>

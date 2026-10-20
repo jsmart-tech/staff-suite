@@ -5,13 +5,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** All pay is in US dollars. */
+export const BUSINESS_CURRENCY = 'USD';
+
 /**
  * Format a monetary amount using the Internationalization API.
  * @param amount   - Number to format
- * @param currency - ISO 4217 currency code (default: 'NGN')
+ * @param currency - ISO 4217 currency code (default: USD)
  */
-export function formatCurrency(amount: number, currency = 'NGN'): string {
-  return new Intl.NumberFormat('en-NG', {
+export function formatCurrency(amount: number, currency = BUSINESS_CURRENCY): string {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
@@ -28,13 +31,30 @@ export function formatHours(hours: number): string {
   return `${h}h ${m}m`;
 }
 
-/** The business runs on Lagos time; dates for work and payroll use it. */
-export const BUSINESS_TIME_ZONE = 'Africa/Lagos';
+/**
+ * The business runs on US Eastern time (EST/EDT, with daylight saving); dates
+ * for work and payroll use it. Keep in sync with business_today() in SQL.
+ */
+export const BUSINESS_TIME_ZONE = 'America/New_York';
 
-/** Today's date in Lagos as YYYY-MM-DD (not UTC, which is an hour behind). */
-export function lagosToday(): string {
+/** Today's date in Eastern time as YYYY-MM-DD (not UTC, which is 4–5 hours ahead). */
+export function businessToday(): string {
   // en-CA formats as YYYY-MM-DD.
   return new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TIME_ZONE }).format(new Date());
+}
+
+/** The moment (ms since epoch) a YYYY-MM-DD day starts in Eastern time, DST included. */
+export function businessDayStart(date: string): number {
+  const [y, m, d] = date.split('-').map(Number);
+  const utcMidnight = Date.UTC(y, m - 1, d);
+  // Offset of Eastern time from UTC at that moment (-4h or -5h).
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BUSINESS_TIME_ZONE, hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(new Date(utcMidnight));
+  const get = (type: string) => Number(parts.find(p => p.type === type)?.value);
+  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'));
+  return utcMidnight - (asUtc - utcMidnight);
 }
 
 /** True for a real calendar date written as YYYY-MM-DD. */
@@ -42,9 +62,9 @@ export function isIsoDate(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
 }
 
-/** The current Lagos month as YYYY-MM. */
-export function lagosCurrentMonth(): string {
-  return lagosToday().slice(0, 7);
+/** The current Eastern-time month as YYYY-MM. */
+export function businessCurrentMonth(): string {
+  return businessToday().slice(0, 7);
 }
 
 /** Moves a YYYY-MM month by `delta` months. */
@@ -64,7 +84,7 @@ export function daysInMonth(month: string): string[] {
 /** "October 2026" for a YYYY-MM month. */
 export function formatMonth(month: string): string {
   const [year, m] = month.split('-').map(Number);
-  return new Date(Date.UTC(year, m - 1, 1)).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return new Date(Date.UTC(year, m - 1, 1)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
 /**
@@ -73,7 +93,15 @@ export function formatMonth(month: string): string {
  */
 export function formatDateOnly(date: string, options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }): string {
   const [year, m, d] = date.split('-').map(Number);
-  return new Date(Date.UTC(year, m - 1, d)).toLocaleDateString('en-GB', { ...options, timeZone: 'UTC' });
+  return new Date(Date.UTC(year, m - 1, d)).toLocaleDateString('en-US', { ...options, timeZone: 'UTC' });
+}
+
+/** Formats a timestamp in Eastern time, e.g. "Oct 20, 2026, 3:45 PM". */
+export function formatDateTime(
+  value: string | number | Date,
+  options: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short' },
+): string {
+  return new Date(value).toLocaleString('en-US', { ...options, timeZone: BUSINESS_TIME_ZONE });
 }
 
 /**

@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Profile } from '@/types';
-import { getRoleBadgeColor, lagosToday } from '@/lib/utils';
+import { businessCurrentMonth, businessDayStart, businessToday, getRoleBadgeColor } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import {
   Users, CheckSquare, Clock, TrendingUp, Activity,
@@ -35,9 +35,9 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
 
   const fetchData = useCallback(async () => {
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const startOfMonth = new Date(businessDayStart(`${businessCurrentMonth()}-01`)).toISOString();
     const yesterday24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    const todayDate = lagosToday();
+    const todayDate = businessToday();
     // Exact counts instead of downloading every task (which stops at 1,000 rows).
     const taskCount = (status?: string) => {
       const query = supabase.from('tasks').select('id', { count: 'exact', head: true });
@@ -49,7 +49,7 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
       taskCount(),
       taskCount('in_progress'),
       taskCount('completed'),
-      // Hours worked today (Lagos date) from the time log, across every task.
+      // Hours worked today (Eastern time) from the time log, across every task.
       supabase.from('time_entries').select('hours').eq('work_date', todayDate),
       supabase.from('login_logs').select('id', { count: 'exact', head: true }).gte('login_time', yesterday24h),
     ]);
@@ -71,7 +71,8 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
   }, [supabase]);
 
   useEffect(() => {
-    void fetchData();
+    const first = window.setTimeout(() => { void fetchData(); }, 0);
+    return () => window.clearTimeout(first);
   }, [fetchData]);
 
   const statCards = useMemo(() => [

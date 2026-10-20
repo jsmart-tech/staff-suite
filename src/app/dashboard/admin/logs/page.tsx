@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { LoginLog, Profile } from '@/types';
-import { getRoleBadgeColor } from '@/lib/utils';
+import { formatDateTime, getRoleBadgeColor } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { Shield, Clock, Search, RefreshCw } from 'lucide-react';
 
@@ -29,7 +29,8 @@ export default function AdminLogsPage() {
   }, [supabase]);
 
   useEffect(() => {
-    void fetchLogs();
+    const first = window.setTimeout(() => { void fetchLogs(); }, 0);
+    return () => window.clearTimeout(first);
   }, [fetchLogs]);
 
   const filtered = useMemo(() => {
@@ -59,7 +60,7 @@ export default function AdminLogsPage() {
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: 'Total Logins', value: logs.length, color: 'violet' },
+          { label: 'Recent Logins', value: logs.length, color: 'violet' },
           { label: 'Today', value: logs.filter(l => new Date(l.login_time).toDateString() === new Date().toDateString()).length, color: 'emerald' },
           { label: 'This Week', value: logs.filter(l => new Date(l.login_time) > new Date(currentTime - 7 * 86400000)).length, color: 'sky' },
         ].map(s => (
@@ -142,14 +143,10 @@ export default function AdminLogsPage() {
                       <td>
                         <div>
                           <p className="text-sm">
-                            {new Date(log.login_time).toLocaleDateString('en-GB', {
-                              day: 'numeric', month: 'short', year: 'numeric'
-                            })}
+                            {formatDateTime(log.login_time, { day: 'numeric', month: 'short', year: 'numeric' })}
                           </p>
                           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                            {new Date(log.login_time).toLocaleTimeString('en-GB', {
-                              hour: '2-digit', minute: '2-digit', second: '2-digit'
-                            })}
+                            {formatDateTime(log.login_time, { hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short' })}
                           </p>
                         </div>
                       </td>
