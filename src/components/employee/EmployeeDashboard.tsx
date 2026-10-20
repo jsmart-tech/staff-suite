@@ -4,56 +4,77 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile, Task } from '@/types';
-import { formatDateOnly, formatHours } from '@/lib/utils';
+import { formatDateOnly, lagosToday } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import {
-  CheckSquare, Clock, TrendingUp, Play, Pause,
+  CheckSquare, Clock, TrendingUp, Play,
   Plus, Target, Calendar, Zap,
 } from 'lucide-react';
 
 export function EmployeeDashboard({ profile }: { profile: Profile }) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [runningTask, setRunningTask] = useState<Task | null>(null);
+  const [stats, setStats] = useState({ todayLogged: 0, monthLogged: 0, completed: 0, inProgress: 0 });
   const [loading, setLoading] = useState(true);
   const [liveSeconds, setLiveSeconds] = useState(0);
+  const [liveTodaySeconds, setLiveTodaySeconds] = useState(0);
   // Memoized — never recreates the WebSocket connection on re-render
   const supabase = useMemo(() => createClient(), []);
 
+  // Stats come from the time log and exact counts, not from the few tasks
+  // shown in "Recent Tasks", so they're right however many tasks there are.
   const fetchTasks = useCallback(async () => {
-    const { data } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false })
-      .limit(20);
-    setTasks(data as Task[] || []);
+    const today = lagosToday();
+    const [recent, running, entries, completedCount, inProgressCount] = await Promise.all([
+      supabase.from('tasks').select('*').eq('user_id', profile.id).order('created_at', { ascending: false }).limit(5),
+      supabase.from('tasks').select('*').eq('user_id', profile.id).eq('is_timer_running', true).limit(1).maybeSingle(),
+      supabase.from('time_entries').select('work_date, hours').eq('user_id', profile.id).gte('work_date', `${today.slice(0, 7)}-01`),
+      supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('user_id', profile.id).eq('status', 'completed'),
+      supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('user_id', profile.id).eq('status', 'in_progress'),
+    ]);
+    if (recent.error) return; // keep showing the last good data; the next refresh retries
+    const monthEntries = entries.data || [];
+    setTasks((recent.data as Task[]) || []);
+    setRunningTask((running.data as Task | null) ?? null);
+    setStats({
+      todayLogged: monthEntries.filter(e => e.work_date === today).reduce((s, e) => s + Number(e.hours), 0),
+      monthLogged: monthEntries.reduce((s, e) => s + Number(e.hours), 0),
+      completed: completedCount.count ?? 0,
+      inProgress: inProgressCount.count ?? 0,
+    });
     setLoading(false);
-  }, [profile.id]);
+  }, [supabase, profile.id]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void fetchTasks(); }, 0);
-    const refresh = window.setInterval(() => { void fetchTasks(); }, 5000);
-    return () => { window.clearTimeout(timer); window.clearInterval(refresh); };
+    // Refresh while the tab is visible; skip while it's in the background.
+    const refresh = window.setInterval(() => { if (!document.hidden) void fetchTasks(); }, 15000);
+    const onVisible = () => { if (!document.hidden) void fetchTasks(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { window.clearTimeout(timer); window.clearInterval(refresh); document.removeEventListener('visibilitychange', onVisible); };
   }, [fetchTasks]);
 
   // Live timer tick
-  const runningTask = tasks.find(t => t.is_timer_running);
+  // Keyed on the start time so the 15-second refresh doesn't restart the tick.
+  const timerStart = runningTask?.timer_start_time ?? null;
   useEffect(() => {
-    if (!runningTask?.timer_start_time) return;
+    if (!timerStart) return;
     const tick = () => {
-      const elapsed = (Date.now() - new Date(runningTask.timer_start_time!).getTime()) / 1000;
-      setLiveSeconds(Math.floor(elapsed));
+      const now = Date.now();
+      const lagosMidnight = new Date(`${lagosToday()}T00:00:00+01:00`).getTime();
+      setLiveSeconds(Math.floor((now - new Date(timerStart).getTime()) / 1000));
+      // Only the part of a running session since Lagos midnight counts as today.
+      setLiveTodaySeconds(Math.floor((now - Math.max(lagosMidnight, new Date(timerStart).getTime())) / 1000));
     };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [runningTask]);
+    const first = window.setTimeout(tick, 0);
+    const interval = window.setInterval(tick, 1000);
+    return () => { window.clearTimeout(first); window.clearInterval(interval); };
+  }, [timerStart]);
 
-  const todayHours = tasks
-    .filter(t => t.date_worked === new Date().toISOString().split('T')[0] || t.is_timer_running)
-    .reduce((s, t) => s + t.hours_spent, 0) + (runningTask?.date_worked === new Date().toISOString().split('T')[0] ? liveSeconds / 3600 : 0);
-  const totalHours = tasks.reduce((s, t) => s + t.hours_spent, 0);
-  const completed = tasks.filter(t => t.status === 'completed').length;
-  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+  // A running timer isn't in the time log until it stops, so add its live time.
+  const todayHours = stats.todayLogged + (runningTask ? liveTodaySeconds / 3600 : 0);
+  const monthHours = stats.monthLogged + (runningTask ? liveSeconds / 3600 : 0);
+  const { completed, inProgress } = stats;
 
   const formatLive = (s: number) => {
     const h = Math.floor(s / 3600);
@@ -114,7 +135,7 @@ export function EmployeeDashboard({ profile }: { profile: Profile }) {
       <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
           { label: "Today's Hours", value: `${todayHours.toFixed(1)}h`, icon: Clock, color: 'violet', sub: 'Logged today' },
-          { label: 'Total Hours', value: `${totalHours.toFixed(1)}h`, icon: TrendingUp, color: 'sky', sub: 'All time' },
+          { label: 'This Month', value: `${monthHours.toFixed(1)}h`, icon: TrendingUp, color: 'sky', sub: 'Hours logged' },
           { label: 'Completed', value: completed, icon: CheckSquare, color: 'emerald', sub: 'Tasks done' },
           { label: 'In Progress', value: inProgress, icon: Target, color: 'amber', sub: 'Active tasks' },
         ].map(card => (

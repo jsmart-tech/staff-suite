@@ -128,13 +128,21 @@ export default function AdminTasksPage() {
     if (!form.title.trim()) { setSaveError('Task title is required.'); return; }
 
     setSaving(true);
-    const response = await fetch('/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    const result = await response.json().catch(() => ({}));
-    setSaving(false);
+    let response: Response;
+    let result: { error?: string };
+    try {
+      response = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      result = await response.json().catch(() => ({}));
+    } catch {
+      setSaveError('Could not reach the server. Check your connection and try again.');
+      return;
+    } finally {
+      setSaving(false);
+    }
 
     if (!response.ok) { setSaveError(result.error || 'Unable to assign this task.'); return; }
 
@@ -166,12 +174,19 @@ export default function AdminTasksPage() {
     setCommentsTaskId(null);
   }, []);
 
+  const commentSavingRef = useRef(false);
   const addComment = async () => {
-    if (!viewTask || !comment.trim()) return;
+    // The ref blocks repeats (double click, held Ctrl+Enter) before React re-renders.
+    if (!viewTask || !comment.trim() || commentSavingRef.current) return;
+    commentSavingRef.current = true;
     setCommentSaving(true);
-    const response = await fetch(`/api/tasks/${viewTask.id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: comment }) });
-    if (response.ok) { setComment(''); await openTask(viewTask); }
-    setCommentSaving(false);
+    try {
+      const response = await fetch(`/api/tasks/${viewTask.id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: comment }) });
+      if (response.ok) { setComment(''); await openTask(viewTask); }
+    } finally {
+      commentSavingRef.current = false;
+      setCommentSaving(false);
+    }
   };
 
   return (

@@ -13,12 +13,17 @@ export default function NotificationsPage() {
   const unread = notifications.filter(notification => !notification.read_at);
 
   const load = useCallback(async () => {
-    const response = await fetch('/api/notifications');
-    if (response.ok) {
-      const result = await response.json();
-      setNotifications(result.notifications || []);
+    try {
+      const response = await fetch('/api/notifications');
+      if (response.ok) {
+        const result = await response.json();
+        setNotifications(result.notifications || []);
+      }
+    } catch {
+      // Keep what is shown; the next load retries.
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => { void load(); }, [load]);

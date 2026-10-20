@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
 import { getInitials, getRoleBadgeColor, formatCurrency } from '@/lib/utils';
-import { User, Mail, Phone, Building, DollarSign, Camera, Loader2, Save, CheckCircle } from 'lucide-react';
+import { User, Mail, Phone, Building, DollarSign, Camera, Loader2, Save, CheckCircle, AlertCircle } from 'lucide-react';
 
 const DEPARTMENTS = ['Engineering', 'Design', 'Marketing', 'Finance', 'Operations', 'HR', 'Sales', 'Legal'];
 
@@ -17,13 +18,16 @@ export default function EmployeeProfilePage() {
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const supabase = createClient();
+  const [saveError, setSaveError] = useState('');
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     const fetch = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      if (error) setSaveError('Could not load your profile. Refresh the page to try again.');
       if (data) {
         setProfile(data as Profile);
         setForm({ full_name: data.full_name || '', phone: data.phone || '', department: data.department || '' });
@@ -31,20 +35,30 @@ export default function EmployeeProfilePage() {
       setLoading(false);
     };
     fetch();
-  }, []);
+  }, [supabase]);
 
   const handleSave = async () => {
     if (!profile) return;
     setSaving(true);
-    await supabase.from('profiles').update({
-      full_name: form.full_name,
-      phone: form.phone,
-      department: form.department,
-    }).eq('id', profile.id);
-    setSaving(false);
-    setSaved(true);
-    setProfile({ ...profile, ...form });
-    setTimeout(() => setSaved(false), 3000);
+    setSaveError('');
+    setSaved(false);
+    try {
+      const { error } = await supabase.from('profiles').update({
+        full_name: form.full_name,
+        phone: form.phone,
+        department: form.department,
+      }).eq('id', profile.id);
+      if (error) { setSaveError(error.message || 'Could not save your profile.'); return; }
+      setSaved(true);
+      setProfile({ ...profile, ...form });
+      // The sidebar shows the name from the server; refresh it.
+      router.refresh();
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setSaveError('Could not reach the server. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,12 +68,17 @@ export default function EmployeeProfilePage() {
     setUploadError('');
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch('/api/profile/avatar', { method: 'POST', body: formData });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) setUploadError(result.error || 'Image upload failed.');
-    else setProfile({ ...profile, avatar_url: result.avatarUrl });
-    setUploading(false);
-    e.target.value = '';
+    try {
+      const response = await fetch('/api/profile/avatar', { method: 'POST', body: formData });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) setUploadError(result.error || 'Image upload failed.');
+      else { setProfile({ ...profile, avatar_url: result.avatarUrl }); router.refresh(); }
+    } catch {
+      setUploadError('Could not reach the server. Check your connection and try again.');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
   };
 
   if (loading) {
@@ -178,6 +197,13 @@ export default function EmployeeProfilePage() {
             >
               <CheckCircle size={15} /> Profile saved successfully!
             </motion.div>
+          )}
+
+          {saveError && (
+            <div role="alert" className="flex items-center gap-2 p-3 rounded-xl text-sm"
+              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+              <AlertCircle size={15} /> {saveError}
+            </div>
           )}
 
           <button onClick={handleSave} disabled={saving} className="btn-primary w-full">

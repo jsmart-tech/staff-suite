@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { scheduleChatReminder } from '@/lib/qstash';
+import { queueChatReminders } from '@/lib/chat-reminders';
 import { createNotifications } from '@/lib/notifications';
 import { attachmentUrlFor, publicKeyFromAttachmentUrl } from '@/lib/attachments';
 
@@ -80,27 +80,15 @@ export async function POST(request: NextRequest) {
       console.error('Unable to create channel message notifications:', notificationError);
     }
     const emailPreview = content?.trim() || (attachmentName ? `📎 ${attachmentName}` : 'Sent an attachment');
-    const reminder = (recipients || []).map((recipient) => ({
+    await queueChatReminders(admin, (recipients || []).map((recipient) => ({
       recipient_id: recipient.id,
       recipient_email: recipient.email,
       scope_key: `channel:${channel}`,
-      message_type: 'channel',
+      message_type: 'channel' as const,
       channel,
       sender_name: sender?.full_name || 'A teammate',
       message_preview: emailPreview.trim(),
-      due_at: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
-      seen_at: null,
-      sent_at: null,
-    }));
-    if (reminder.length) {
-      const { data: queuedReminders, error: reminderError } = await admin.from('chat_email_notifications')
-        .upsert(reminder, { onConflict: 'recipient_id,scope_key' }).select('id');
-      if (reminderError) console.error('Unable to queue chat email reminders:', reminderError.message);
-      for (const queuedReminder of queuedReminders || []) {
-        const scheduled = await scheduleChatReminder(queuedReminder.id);
-        if (scheduled.error) console.error(scheduled.error);
-      }
-    }
+    })));
     await admin.from('chat_email_notifications').update({ seen_at: now.toISOString() })
       .eq('recipient_id', user.id).eq('scope_key', `channel:${channel}`).is('sent_at', null);
     return NextResponse.json({ message });

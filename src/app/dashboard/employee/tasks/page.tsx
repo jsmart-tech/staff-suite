@@ -147,16 +147,44 @@ export default function EmployeeTasksPage() {
   const handleStartTimer = (task: Task) => runTimerAction(task, 'start_timer');
   const handleStopTimer = (task: Task) => runTimerAction(task, 'stop_timer');
 
-  const openTaskComments = async (task: Task) => {
+  // Each load gets an id; a slow response for a task the user has already
+  // left is ignored, so task A's comments never show under task B.
+  const commentsRequestRef = useRef(0);
+  const loadComments = async (task: Task) => {
+    const requestId = ++commentsRequestRef.current;
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/comments`, { cache: 'no-store' });
+      const next = response.ok ? (await response.json()).comments || [] : [];
+      if (requestId === commentsRequestRef.current) setComments(next);
+    } catch {
+      // Leave the thread as it is; the user can reopen the task to retry.
+    }
+  };
+  const openTaskComments = (task: Task) => {
     setViewTask(task); setComment(''); setComments([]);
-    const response = await fetch(`/api/tasks/${task.id}/comments`);
-    if (response.ok) setComments((await response.json()).comments || []);
+    void loadComments(task);
+  };
+  const closeTaskComments = () => {
+    ++commentsRequestRef.current;
+    setViewTask(null);
   };
 
+  const commentSavingRef = useRef(false);
+  const [commentSaving, setCommentSaving] = useState(false);
   const sendComment = async () => {
-    if (!viewTask || !comment.trim()) return;
-    const response = await fetch(`/api/tasks/${viewTask.id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: comment }) });
-    if (response.ok) { setComment(''); await openTaskComments(viewTask); }
+    if (!viewTask || !comment.trim() || commentSavingRef.current) return;
+    commentSavingRef.current = true;
+    setCommentSaving(true);
+    try {
+      const response = await fetch(`/api/tasks/${viewTask.id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: comment }) });
+      if (response.ok) { setComment(''); await loadComments(viewTask); }
+      else setPageError(await readError(response, 'Could not post your comment.'));
+    } catch {
+      setPageError('Could not reach the server. Check your connection and try again.');
+    } finally {
+      commentSavingRef.current = false;
+      setCommentSaving(false);
+    }
   };
 
   const handleSave = async () => {
@@ -396,7 +424,7 @@ export default function EmployeeTasksPage() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-1 flex-shrink-0">
-                        <button type="button" onClick={() => void openTaskComments(task)} className="p-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors" style={{ color: 'var(--accent-violet)' }} title="View comments"><MessageSquare size={14} /></button>
+                        <button type="button" onClick={() => openTaskComments(task)} className="p-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors" style={{ color: 'var(--accent-violet)' }} title="View comments"><MessageSquare size={14} /></button>
                         {/* Timer button */}
                         {task.status !== 'completed' && (
                           <button
@@ -542,13 +570,13 @@ export default function EmployeeTasksPage() {
 
       <AnimatePresence>
         {viewTask && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={e => { if (e.target === e.currentTarget) setViewTask(null); }}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={e => { if (e.target === e.currentTarget) closeTaskComments(); }}>
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--border-bright)] bg-[var(--bg-card)] p-6">
-              <div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-widest text-[var(--text-muted)]">Task details</p><h2 className="mt-1 text-xl font-bold">{viewTask.title}</h2></div><button type="button" onClick={() => setViewTask(null)}><X size={18} /></button></div>
+              <div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-widest text-[var(--text-muted)]">Task details</p><h2 className="mt-1 text-xl font-bold">{viewTask.title}</h2></div><button type="button" onClick={closeTaskComments} aria-label="Close task details"><X size={18} /></button></div>
               <p className="mt-4 whitespace-pre-wrap text-sm text-[var(--text-secondary)]">{viewTask.description || 'No description provided.'}</p>
               <div className="mt-6 flex min-h-0 flex-1 flex-col border-t border-[var(--border)] pt-5"><h3 className="flex items-center gap-2 font-semibold"><MessageSquare size={16} /> Comments <span className="text-xs font-normal text-[var(--text-muted)]">({comments.length})</span></h3>
                 <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">{comments.length ? comments.map(item => <div key={item.id} className={`flex ${item.author_id === userId ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] rounded-xl p-3 ${item.author_id === userId ? 'rounded-br-md bg-[var(--accent)] text-white' : 'rounded-bl-md bg-[var(--bg-hover)]'}`}><p className="text-xs font-semibold">{item.author_id === userId ? 'You' : (item.profiles?.full_name || 'Team member')}</p><p className="mt-1 whitespace-pre-wrap text-sm">{item.body}</p><p className={`mt-1 text-[11px] ${item.author_id === userId ? 'text-white/70' : 'text-[var(--text-muted)]'}`}>{new Date(item.created_at).toLocaleString()}</p></div></div>) : <p className="text-sm text-[var(--text-muted)]">No comments yet.</p>}</div>
-                <div className="mt-4 flex shrink-0 gap-2"><textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Write a comment..." className="input-field min-h-20 flex-1 resize-y" /><button type="button" onClick={() => void sendComment()} disabled={!comment.trim()} className="btn-primary self-end">Send</button></div>
+                <div className="mt-4 flex shrink-0 gap-2"><textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Write a comment..." className="input-field min-h-20 flex-1 resize-y" /><button type="button" onClick={() => void sendComment()} disabled={commentSaving || !comment.trim()} className="btn-primary self-end">{commentSaving ? <Loader2 size={15} className="animate-spin" /> : null}Send</button></div>
               </div>
             </motion.div>
           </motion.div>

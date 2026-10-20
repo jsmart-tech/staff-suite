@@ -2,6 +2,7 @@ import { GetObjectCommand, DeleteObjectCommand, CopyObjectCommand } from '@aws-s
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { r2, r2Bucket } from '@/lib/r2';
+import { detectMimeFromBytes } from '@/lib/file-types';
 
 /**
  * POST /api/chat/verify-upload
@@ -26,43 +27,12 @@ const ALLOWED_MIME_PREFIXES = [
   'application/pdf',
   'audio/',
   'video/',
-  'text/plain',
   // Office formats fall through to octet-stream; allowed by filename extension
 ];
 
 const ALLOWED_OCTET_STREAM_EXTENSIONS = new Set([
   'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt',
 ]);
-
-function detectMimeFromBytes(buf: Buffer): string | null {
-  if (buf.length < 4) return null;
-  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
-  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png';
-  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return 'image/gif';
-  if (buf.length >= 12 &&
-      buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
-      buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return 'image/webp';
-  if (buf[0] === 0x42 && buf[1] === 0x4d) return 'image/bmp';
-  if ((buf[0] === 0x49 && buf[1] === 0x49 && buf[2] === 0x2a && buf[3] === 0x00) ||
-      (buf[0] === 0x4d && buf[1] === 0x4d && buf[2] === 0x00 && buf[3] === 0x2a)) return 'image/tiff';
-  if (buf.length >= 12 && buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) {
-    const brand = buf.slice(8, 12).toString('ascii');
-    if (brand.startsWith('avif') || brand.startsWith('avis')) return 'image/avif';
-    if (brand.startsWith('heic') || brand.startsWith('heix') || brand.startsWith('hevc')) return 'image/heic';
-    if (brand.startsWith('heif') || brand.startsWith('mif1')) return 'image/heif';
-    return null;
-  }
-  if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) return 'application/pdf';
-  // ZIP-based container (Office Open XML, ODP, ODS, …)
-  if (buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04) return 'application/zip';
-  // MP3
-  if ((buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) ||
-      (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0)) return 'audio/mpeg';
-  // MP4 / MOV
-  if (buf.length >= 8 && buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70)
-    return 'video/mp4';
-  return null;
-}
 
 function isMimeAllowed(mime: string | null, fileName: string): boolean {
   if (!mime) {

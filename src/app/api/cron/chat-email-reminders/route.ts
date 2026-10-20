@@ -1,9 +1,17 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { sendNotificationEmails, getSiteUrl } from '@/lib/email';
+import { sendDueReminders } from '@/lib/chat-reminders';
 
 export const runtime = 'nodejs';
 
+function secretMatches(provided: string | null | undefined, secret: string) {
+  if (!provided) return false;
+  const a = Buffer.from(provided), b = Buffer.from(secret);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Fallback sender for any due reminders a QStash job missed. */
 export async function GET(request: NextRequest) {
   const secret = process.env.CHAT_REMINDER_CRON_SECRET;
   const providedSecret = request.headers.get('x-cron-secret')
@@ -11,39 +19,24 @@ export async function GET(request: NextRequest) {
   if (!secret) {
     return NextResponse.json({ error: 'Reminder scheduler is not configured.' }, { status: 503 });
   }
-  if (providedSecret !== secret) {
+  if (!secretMatches(providedSecret, secret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const admin = createAdminClient();
-  const { data: reminders, error } = await admin.from('chat_email_notifications')
-    .select('id, recipient_email, message_type, channel, sender_name, message_preview')
+  const { data: due, error } = await admin.from('chat_email_notifications')
+    .select('id')
     .lte('due_at', new Date().toISOString())
     .is('seen_at', null)
     .is('sent_at', null)
     .order('due_at')
     .limit(50);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!reminders?.length) return NextResponse.json({ processed: 0 });
 
-  const site = getSiteUrl();
-  const result = await sendNotificationEmails(reminders.map((reminder) => ({
-    to: reminder.recipient_email,
-    subject: reminder.message_type === 'direct'
-      ? `Unread direct message from ${reminder.sender_name}`
-      : `Unread messages in #${reminder.channel}`,
-    heading: reminder.message_type === 'direct'
-      ? `${reminder.sender_name} sent you a message`
-      : `${reminder.sender_name} posted in #${reminder.channel}`,
-    body: reminder.message_preview,
-    actionUrl: `${site}/dashboard/chat`,
-    actionLabel: 'Open chat',
-  })));
-  if (result.error) return NextResponse.json({ error: result.error }, { status: 502 });
-
-  const { error: updateError } = await admin.from('chat_email_notifications')
-    .update({ sent_at: new Date().toISOString() })
-    .in('id', reminders.map((reminder) => reminder.id));
-  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
-  return NextResponse.json({ processed: reminders.length });
+  try {
+    const { sent, failed } = await sendDueReminders(admin, (due || []).map(row => row.id));
+    return NextResponse.json({ processed: sent, failed }, { status: failed ? 502 : 200 });
+  } catch (sendError) {
+    return NextResponse.json({ error: sendError instanceof Error ? sendError.message : 'Unexpected error' }, { status: 500 });
+  }
 }

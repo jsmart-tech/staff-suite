@@ -181,6 +181,8 @@ async function notifyAdmins(opts: {
     }
     if ('timer_start_time' in patch && !('is_timer_running' in patch)) changes.push('Timer details updated');
     if (changes.length === 0) return; // Nothing worth notifying about
+    // Timer start/stop happens many times a day: in-app notification only, no email.
+    const timerOnly = Object.keys(patch).every(key => key === 'is_timer_running');
 
     await createNotifications({
       actorId: user.id,
@@ -193,6 +195,8 @@ async function notifyAdmins(opts: {
       entityId: task.id,
       eventKey: `task-updated:${task.id}:${new Date().toISOString()}`,
     });
+
+    if (timerOnly) return;
 
     const site = getSiteUrl();
     const notifications = admins.map((adminProfile) => ({

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
@@ -231,9 +231,22 @@ function ChatBubble({
 
 // ─── main page ───────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 50;
+const chatKeyOf = (chat: ActiveChat) => `${chat.kind}:${chat.id}`;
+const byCreatedAt = (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+
 export default function ChatPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [active, setActive] = useState<ActiveChat>({ kind: 'channel', id: 'general', label: 'general' });
+  // The chat on screen right now. Async work started for another chat checks
+  // this before touching state, so switching chats never mixes messages.
+  const activeKeyRef = useRef(chatKeyOf(active));
+  useLayoutEffect(() => { activeKeyRef.current = chatKeyOf(active); }, [active]);
+  // Messages still sending or failed, per chat, so they survive switching away
+  // and back (and stay retryable).
+  const pendingStoreRef = useRef(new Map<string, Message & { _chatKey: string }>());
+  const [hasOlder, setHasOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [contacts, setContacts] = useState<Pick<Profile, 'id' | 'full_name' | 'email' | 'role' | 'avatar_url'>[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -259,6 +272,12 @@ export default function ChatPage() {
   const sentClientIdsRef = useRef<Set<string>>(new Set());
   // True when the user has manually scrolled up — suppresses auto-scroll-to-bottom
   const userScrolledUpRef = useRef(false);
+  // XHR ref so we can abort in-flight uploads when the chip is dismissed
+  const uploadXhrRef = useRef<XMLHttpRequest | null>(null);
+  // Bumped for every new upload and whenever the chat changes; an upload's
+  // callbacks stop as soon as it no longer matches, so a file started in one
+  // chat is never attached to (or auto-sent in) another.
+  const uploadTokenRef = useRef(0);
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -271,6 +290,16 @@ export default function ChatPage() {
   }, []);
 
   const selectChat = (next: ActiveChat) => {
+    if (chatKeyOf(next) !== chatKeyOf(active)) {
+      // Switching chats cancels an attachment that hasn't been sent yet, so a
+      // file chosen in one conversation is never sent in another.
+      uploadTokenRef.current++;
+      autoSendAttachmentRef.current = false;
+      uploadXhrRef.current?.abort();
+      uploadXhrRef.current = null;
+      if (attachment) URL.revokeObjectURL(attachment.blobUrl);
+      setAttachment(null);
+    }
     setActive(next);
     // Only switch to the conversation view on phones. On desktop and tablet,
     // keep the conversation sidebar visible beside the selected chat.
@@ -313,25 +342,57 @@ export default function ChatPage() {
   }, [supabase]);
 
   // ── dedup helper — merges server messages with in-flight optimistics ──────
+  // Adds server messages to what's on screen. Older messages the user loaded
+  // with "Load earlier messages" are kept (a refresh only fetches the newest
+  // page), and pending messages stay until the server confirms them.
   const mergeMessages = useCallback(
     (server: Message[], previous: Message[]): Message[] => {
-      const result = new Map<string, Message>(server.map((m) => [m.id, m]));
-      // Keep only pending messages whose clientMessageId hasn't been confirmed
+      const result = new Map<string, Message>();
       for (const m of previous) {
-        if (!m.id.startsWith('pending-')) continue;
-        const alreadyConfirmed = m.client_message_id
-          ? sentClientIdsRef.current.has(m.client_message_id)
-          : false;
-        if (!alreadyConfirmed) result.set(m.id, m);
+        if (m.id.startsWith('pending-')) {
+          const alreadyConfirmed = m.client_message_id
+            ? sentClientIdsRef.current.has(m.client_message_id)
+            : false;
+          if (alreadyConfirmed) continue;
+        }
+        result.set(m.id, m);
       }
-      return [...result.values()].sort(
-        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      );
+      for (const m of server) result.set(m.id, m);
+      return [...result.values()].sort(byCreatedAt);
     },
     []
   );
 
+  /** Pending/failed messages saved for a chat, for showing again when it reopens. */
+  const pendingFor = useCallback((key: string): Message[] =>
+    [...pendingStoreRef.current.values()].filter(m =>
+      m._chatKey === key && !(m.client_message_id && sentClientIdsRef.current.has(m.client_message_id))
+    ), []);
+
+  /** Updates a pending message on screen (if its chat is open) and in the store. */
+  const updatePending = useCallback((optimisticId: string, patch: Partial<Message>) => {
+    const stored = pendingStoreRef.current.get(optimisticId);
+    if (stored) pendingStoreRef.current.set(optimisticId, { ...stored, ...patch });
+    setMessages((prev) => prev.map((m) => (m.id === optimisticId ? { ...m, ...patch } : m)));
+  }, []);
+
   // ── smart scroll: only snap to bottom when user is already near the bottom ─
+  // Set before older messages are added above, so the view stays put.
+  const prependAnchorRef = useRef<number | null>(null);
+  // Set when a chat is opened, so it starts at the newest message.
+  const jumpToBottomRef = useRef(false);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (prependAnchorRef.current !== null) {
+      el.scrollTop += el.scrollHeight - prependAnchorRef.current;
+      prependAnchorRef.current = null;
+    } else if (jumpToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+      jumpToBottomRef.current = false;
+    }
+  }, [messages]);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -361,9 +422,9 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── poll unread every 5 s ─────────────────────────────────────────────────
+  // ── poll unread every 15 s while the tab is visible ───────────────────────
   useEffect(() => {
-    const timer = window.setInterval(() => void loadUnread(), 5000);
+    const timer = window.setInterval(() => { if (!document.hidden) void loadUnread(); }, 15000);
     return () => window.clearInterval(timer);
   }, [loadUnread]);
 
@@ -377,64 +438,106 @@ export default function ChatPage() {
     return () => window.removeEventListener('error', hide, true);
   }, []);
 
-  // ── load messages whenever active chat changes ────────────────────────────
+  // ── load messages ─────────────────────────────────────────────────────────
+  // One page of messages, newest first from the database, returned oldest
+  // first for display. `before` fetches the page before that time.
+  const fetchPage = useCallback(async (chat: ActiveChat, convId: string | null, before?: string) => {
+    const base = supabase
+      .from(chat.kind === 'channel' ? 'chat_messages' : 'direct_messages')
+      .select('*, profiles(full_name, avatar_url, role)');
+    const scoped = chat.kind === 'channel' ? base.eq('channel', chat.id) : base.eq('conversation_id', convId as string);
+    const { data, error: loadError } = await (before ? scoped.lt('created_at', before) : scoped)
+      .order('created_at', { ascending: false })
+      .limit(PAGE_SIZE);
+    const rows = (data || []) as Message[];
+    return {
+      messages: await hydrateSenderProfiles([...rows].reverse()),
+      error: loadError?.message ?? '',
+      mayHaveOlder: rows.length === PAGE_SIZE,
+    };
+  }, [supabase, hydrateSenderProfiles]);
+
   useEffect(() => {
     if (!profile) return;
+    const chat = active;
+    const key = chatKeyOf(chat);
+    let convId: string | null = null;
+    let firstLoad = true;
 
-    const load = async (reset = false) => {
-      setError('');
-      // NEVER call setMessages([]) before the fetch completes — it causes a
-      // visible blank flash when switching channels. On reset we only clear
-      // conversationId (cheap, no visual gap).
-      if (reset) setConversationId(null);
+    const load = async () => {
+      try {
+        if (firstLoad) { setError(''); setConversationId(null); }
+        if (chat.kind === 'direct' && !convId) {
+          const [member_one, member_two] = [profile.id, chat.id].sort();
+          const { data: conv, error: convError } = await supabase
+            .from('direct_conversations')
+            .select('id')
+            .eq('member_one', member_one)
+            .eq('member_two', member_two)
+            .maybeSingle();
+          if (activeKeyRef.current !== key) return; // user moved to another chat
+          if (convError) { setError(convError.message); return; }
+          convId = conv?.id ?? null;
+          setConversationId(convId);
+          if (!convId) {
+            // No messages yet. (Checked again on the next refresh in case the
+            // other person starts the conversation.)
+            if (firstLoad) {
+              firstLoad = false;
+              setHasOlder(false);
+              setMessages(pendingFor(key));
+            }
+            return;
+          }
+        }
 
-      if (active.kind === 'channel') {
-        const { data, error: loadError } = await supabase
-          .from('chat_messages')
-          .select('*, profiles(full_name, avatar_url, role)')
-          .eq('channel', active.id)
-          .order('created_at')
-          .limit(100);
-        // Note: client_message_id is included via the * selector
-        if (loadError) setError(loadError.message);
-        const hydrated = await hydrateSenderProfiles((data || []) as Message[]);
-        setMessages((prev) => (reset ? hydrated : mergeMessages(hydrated, prev)));
-        if (reset) {
-          markAsRead('channel', active.id);
-          setUnreadScopes((s) => s.filter((x) => x !== `channel:${active.id}`));
+        const page = await fetchPage(chat, convId);
+        if (activeKeyRef.current !== key) return; // user moved to another chat
+        if (page.error) setError(page.error);
+
+        if (firstLoad) {
+          // Don't clear the list before this point — that causes a blank
+          // flash when switching chats.
+          firstLoad = false;
+          jumpToBottomRef.current = true;
+          setHasOlder(page.mayHaveOlder);
+          setMessages(mergeMessages(page.messages, pendingFor(key)));
+          markAsRead(chat.kind, chat.kind === 'channel' ? chat.id : convId!);
+          if (chat.kind === 'channel') setUnreadScopes((s) => s.filter((x) => x !== `channel:${chat.id}`));
+          else setUnreadDirectIds((ids) => ids.filter((id) => id !== chat.id));
+        } else {
+          setMessages((prev) => mergeMessages(page.messages, prev));
         }
-      } else {
-        const [member_one, member_two] = [profile.id, active.id].sort();
-        const { data: conv, error: loadError } = await supabase
-          .from('direct_conversations')
-          .select('id')
-          .eq('member_one', member_one)
-          .eq('member_two', member_two)
-          .maybeSingle();
-        if (loadError) setError(loadError.message);
-        setConversationId(conv?.id || null);
-        if (!conv) { setMessages([]); return; }
-        const { data } = await supabase
-          .from('direct_messages')
-          .select('*, profiles(full_name, avatar_url, role)')
-          .eq('conversation_id', conv.id)
-          .order('created_at')
-          .limit(100);
-        const hydrated = await hydrateSenderProfiles((data || []) as Message[]);
-        setMessages((prev) => (reset ? hydrated : mergeMessages(hydrated, prev)));
-        if (reset) {
-          markAsRead('direct', conv.id);
-          setUnreadDirectIds((ids) => ids.filter((id) => id !== active.id));
-        }
+      } catch {
+        if (activeKeyRef.current === key) setError('Could not load messages. Check your connection.');
       }
     };
 
-    void load(true);
-    // 5-second fallback poll — only updates non-pending messages via mergeMessages
-    const refresh = window.setInterval(() => void load(), 5000);
-    return () => window.clearInterval(refresh);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, profile]);
+    const first = window.setTimeout(() => void load(), 0);
+    // Fallback refresh; realtime delivers new messages in between.
+    const refresh = window.setInterval(() => { if (!document.hidden) void load(); }, 15000);
+    return () => { window.clearTimeout(first); window.clearInterval(refresh); };
+  }, [active, profile, supabase, fetchPage, mergeMessages, pendingFor, markAsRead]);
+
+  const loadOlder = async () => {
+    const chat = active;
+    const key = chatKeyOf(chat);
+    const oldest = messages.find((m) => !m.id.startsWith('pending-'));
+    if (!oldest || loadingOlder || (chat.kind === 'direct' && !conversationId)) return;
+    setLoadingOlder(true);
+    try {
+      const page = await fetchPage(chat, conversationId, oldest.created_at);
+      if (activeKeyRef.current !== key) return;
+      if (page.error) { setError(page.error); return; }
+      prependAnchorRef.current = scrollRef.current?.scrollHeight ?? null;
+      setHasOlder(page.mayHaveOlder);
+      setMessages((prev) => mergeMessages(page.messages, prev));
+    } catch {
+      setError('Could not load earlier messages. Check your connection.');
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   // ── Realtime subscription ─────────────────────────────────────────────────
   useEffect(() => {
@@ -446,6 +549,7 @@ export default function ChatPage() {
         ? `conversation_id=eq.${conversationId}`
         : undefined;
     if (active.kind === 'direct' && !conversationId) return;
+    const subscribedKey = chatKeyOf(active);
 
     const channel = supabase
       .channel(`chat-${active.kind}-${active.id}`)
@@ -457,6 +561,8 @@ export default function ChatPage() {
           .single();
         if (!data) return;
         const [hydrated] = await hydrateSenderProfiles([data as Message]);
+        // The user may have switched chats while this was loading.
+        if (activeKeyRef.current !== subscribedKey) return;
 
         setMessages((prev) => {
           // Skip if we already have this confirmed message
@@ -472,9 +578,10 @@ export default function ChatPage() {
               m.client_message_id === clientId
           );
           if (pendingIdx !== -1) {
+            pendingStoreRef.current.delete(prev[pendingIdx].id);
             return prev.map((m, i) => (i === pendingIdx ? hydrated : m));
           }
-          return [...prev, hydrated];
+          return [...prev, hydrated].sort(byCreatedAt);
         });
         markAsRead(active.kind, active.kind === 'channel' ? active.id : conversationId!);
       })
@@ -493,46 +600,43 @@ export default function ChatPage() {
     clientMessageId: string,
     endpoint: string,
     body: Record<string, unknown>,
+    chatKey: string,
   ) => {
+    const markFailed = () => updatePending(optimisticId, {
+      _status: 'failed' as MessageStatus,
+      _retryPayload: { endpoint, body, clientMessageId },
+    });
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).catch(() => null);
+    setSending(false);
+    sendLockRef.current = false;
 
     // Network failure
-    if (!response) {
-      setMessages((prev) => prev.map((m) =>
-        m.id === optimisticId
-          ? { ...m, _status: 'failed' as MessageStatus, _retryPayload: { endpoint, body, clientMessageId } }
-          : m
-      ));
-      setSending(false);
-      sendLockRef.current = false;
-      return;
-    }
+    if (!response) { markFailed(); return; }
 
     const result = await response.json().catch(() => ({}));
-    setSending(false);
 
     // Server error
     if (!response.ok) {
-      setMessages((prev) => prev.map((m) =>
-        m.id === optimisticId
-          ? { ...m, _status: 'failed' as MessageStatus, _retryPayload: { endpoint, body, clientMessageId } }
-          : m
-      ));
-      setError(result.error || 'Message could not be sent.');
-      sendLockRef.current = false;
+      markFailed();
+      if (activeKeyRef.current === chatKey) setError(result.error || 'Message could not be sent.');
       return;
     }
 
-    if (active.kind === 'direct' && result.conversationId) {
+    // Mark confirmed so the Realtime echo and refreshes don't add a duplicate
+    sentClientIdsRef.current.add(clientMessageId);
+    pendingStoreRef.current.delete(optimisticId);
+
+    // If the user has switched chats, the message is saved; it will show when
+    // they reopen that chat. Don't touch the chat now on screen.
+    if (activeKeyRef.current !== chatKey) return;
+
+    if (chatKey.startsWith('direct:') && result.conversationId) {
       setConversationId(result.conversationId);
     }
-
-    // Mark confirmed so the Realtime echo doesn't add a duplicate
-    sentClientIdsRef.current.add(clientMessageId);
 
     if (result.message) {
       const confirmed: Message = {
@@ -553,25 +657,20 @@ export default function ChatPage() {
         // Optimistic was already replaced by Realtime — just deduplicate
         return prev.some((m) => m.id === confirmed.id)
           ? prev
-          : [...prev, confirmed].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+          : [...prev, confirmed].sort(byCreatedAt);
       });
     }
-
-    sendLockRef.current = false;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, profile]);
+  }, [profile, updatePending]);
 
   const retryMessage = useCallback((failed: Message) => {
     if (!failed._retryPayload) return;
     const { endpoint, body, clientMessageId } = failed._retryPayload;
-    setMessages((prev) => prev.map((m) =>
-      m.id === failed.id ? { ...m, _status: 'sending' as MessageStatus } : m
-    ));
+    updatePending(failed.id, { _status: 'sending' as MessageStatus });
     setSending(true);
     sendLockRef.current = true;
     setError('');
-    void dispatchMessage(failed.id, clientMessageId, endpoint, body);
-  }, [dispatchMessage]);
+    void dispatchMessage(failed.id, clientMessageId, endpoint, body, activeKeyRef.current);
+  }, [dispatchMessage, updatePending]);
 
   const send = useCallback(async () => {
     // Bail if already sending OR upload still in-flight
@@ -613,6 +712,8 @@ export default function ChatPage() {
         : undefined,
     };
 
+    const chatKey = chatKeyOf(active);
+    pendingStoreRef.current.set(optimisticId, { ...optimistic, _chatKey: chatKey });
     setMessages((prev) => [...prev, optimistic]);
     setContent('');            // ← clears text field immediately
     setAttachment(null);       // ← clears chip immediately (before any await)
@@ -628,7 +729,7 @@ export default function ChatPage() {
         ? { channel: active.id, content: messageContent, attachmentUrl: snapUrl, attachmentName: snapName, attachmentMimeType: snapMimeType, clientMessageId }
         : { recipientId: active.id, content: messageContent, attachmentUrl: snapUrl, attachmentName: snapName, attachmentMimeType: snapMimeType, clientMessageId };
 
-    void dispatchMessage(optimisticId, clientMessageId, endpoint, body);
+    void dispatchMessage(optimisticId, clientMessageId, endpoint, body, chatKey);
   }, [sending, content, attachment, profile, active, dispatchMessage]);
 
   // Once an upload has been verified and the stable attachment URL is ready,
@@ -639,12 +740,6 @@ export default function ChatPage() {
     autoSendAttachmentRef.current = false;
     void send();
   }, [attachment, send]);
-
-  // XHR ref so we can abort in-flight uploads when the chip is dismissed
-  const uploadXhrRef = useRef<XMLHttpRequest | null>(null);
-  // Read inside uploadAttachment (a stable callback) to pick the upload scope.
-  const activeKindRef = useRef(active.kind);
-  useEffect(() => { activeKindRef.current = active.kind; }, [active.kind]);
 
   // ── file upload (presigned-PUT flow) ─────────────────────────────────────
   //
@@ -670,6 +765,10 @@ export default function ChatPage() {
     const blobUrl = URL.createObjectURL(file);
     const browserMime = file.type || 'application/octet-stream';
     autoSendAttachmentRef.current = true;
+    // This upload belongs to the chat open right now.
+    const token = ++uploadTokenRef.current;
+    const isCurrent = () => uploadTokenRef.current === token;
+    const scope = activeKeyRef.current.startsWith('direct:') ? 'dm' : 'chat';
 
     // 2. Show chip instantly; blobUrl stays as url until presigned step resolves
     setAttachment({
@@ -706,12 +805,13 @@ export default function ChatPage() {
             fileSize: file.size,
             browserMime,
             fileHeaderBase64,
-            scope: activeKindRef.current === 'direct' ? 'dm' : 'chat',
+            scope,
           }),
         });
         const urlData = await urlRes.json() as {
           presignedUrl?: string; cdnUrl?: string; key?: string; publicKey?: string; mimeType?: string; uploadContentType?: string; error?: string;
         };
+        if (!isCurrent()) return; // cancelled or chat switched
         if (!urlRes.ok || !urlData.presignedUrl || !urlData.cdnUrl) {
           URL.revokeObjectURL(blobUrl);
           setAttachment(null);
@@ -726,6 +826,7 @@ export default function ChatPage() {
         serverMime   = urlData.mimeType ?? browserMime;
         uploadContentType = urlData.uploadContentType ?? 'application/octet-stream';
       } catch {
+        if (!isCurrent()) return;
         URL.revokeObjectURL(blobUrl);
         setAttachment(null);
         setError('Could not start upload. Please try again.');
@@ -743,6 +844,7 @@ export default function ChatPage() {
       };
 
       xhr.onload = async () => {
+        if (!isCurrent()) return;
         uploadXhrRef.current = null;
         if (xhr.status >= 200 && xhr.status < 300) {
           // ── Post-upload MIME verification ──────────────────────────────────
@@ -758,6 +860,7 @@ export default function ChatPage() {
               body: JSON.stringify({ key: objectKey, publicKey }),
             });
             const verifyData = await verifyRes.json() as { ok?: boolean; mimeType?: string; error?: string };
+            if (!isCurrent()) return;
             if (!verifyRes.ok || !verifyData.ok) {
               URL.revokeObjectURL(blobUrl);
               setAttachment(null);
@@ -766,6 +869,7 @@ export default function ChatPage() {
             }
             verifiedMime = verifyData.mimeType ?? serverMime;
           } catch {
+            if (!isCurrent()) return;
             URL.revokeObjectURL(blobUrl);
             setAttachment(null);
             setError('Could not verify upload. Please try again.');
@@ -790,6 +894,7 @@ export default function ChatPage() {
       };
 
       xhr.onerror = () => {
+        if (!isCurrent()) return;
         uploadXhrRef.current = null;
         URL.revokeObjectURL(blobUrl);
         setAttachment(null);
@@ -886,14 +991,29 @@ export default function ChatPage() {
           </p>
         </div>
       ) : (
-        messages.map((message) => (
-          <ChatBubble
-            key={message.id}
-            message={message}
-            own={message.sender_id === profile?.id}
-            onRetry={retryMessage}
-          />
-        ))
+        <>
+          {hasOlder && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => void loadOlder()}
+                disabled={loadingOlder}
+                className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--bg-card)] px-4 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-60"
+              >
+                {loadingOlder && <Loader2 size={12} className="animate-spin" />}
+                {loadingOlder ? 'Loading…' : 'Load earlier messages'}
+              </button>
+            </div>
+          )}
+          {messages.map((message) => (
+            <ChatBubble
+              key={message.id}
+              message={message}
+              own={message.sender_id === profile?.id}
+              onRetry={retryMessage}
+            />
+          ))}
+        </>
       )}
     </section>
   );
@@ -931,6 +1051,7 @@ export default function ChatPage() {
             aria-label="Remove attachment"
             onClick={() => {
               autoSendAttachmentRef.current = false;
+              uploadTokenRef.current++; // stop the upload's remaining steps
               if (uploadXhrRef.current) {
                 uploadXhrRef.current.abort();
                 uploadXhrRef.current = null;

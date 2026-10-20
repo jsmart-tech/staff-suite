@@ -40,6 +40,13 @@ const navItems: NavItem[] = [
   { href: '/dashboard/chat', label: 'Team Chat', icon: MessageSquare, roles: ['admin', 'accountant', 'employee'] },
 ];
 
+function readSeen(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function writeSeen(key: string) {
+  try { localStorage.setItem(key, new Date().toISOString()); } catch { /* storage unavailable */ }
+}
+
 export function Sidebar({ profile }: { profile: Profile }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -65,15 +72,29 @@ export function Sidebar({ profile }: { profile: Profile }) {
     void loadNotifications();
   }, [pathname, profile.id]);
 
+  const chatKey = `staff-suite:chat-seen:${profile.id}`;
+  const taskKey = `staff-suite:tasks-seen:${profile.id}`;
+
+  // While a page is open, everything on it counts as seen. The time is saved
+  // on arrival and again on leaving, so messages read in chat aren't flagged
+  // "New" afterwards.
   useEffect(() => {
-    const chatKey = `staff-suite:chat-seen:${profile.id}`;
-    const taskKey = `staff-suite:tasks-seen:${profile.id}`;
-    const chatSeenAt = localStorage.getItem(chatKey) ?? new Date().toISOString();
-    const taskSeenAt = localStorage.getItem(taskKey) ?? new Date().toISOString();
-    if (!localStorage.getItem(chatKey)) localStorage.setItem(chatKey, chatSeenAt);
-    if (!localStorage.getItem(taskKey)) localStorage.setItem(taskKey, taskSeenAt);
+    const key = pathname.startsWith('/dashboard/chat') ? chatKey
+      : pathname.startsWith('/dashboard/employee/tasks') ? taskKey
+      : null;
+    if (!key) return;
+    writeSeen(key);
+    return () => writeSeen(key);
+  }, [pathname, chatKey, taskKey]);
+
+  // Unread check on each page change (cheap: three limit-1 queries).
+  useEffect(() => {
+    const now = new Date().toISOString();
+    const chatSeenAt = readSeen(chatKey) ?? (writeSeen(chatKey), now);
+    const taskSeenAt = readSeen(taskKey) ?? (writeSeen(taskKey), now);
     const viewingChat = pathname.startsWith('/dashboard/chat');
     const viewingTasks = pathname.startsWith('/dashboard/employee/tasks');
+    let cancelled = false;
 
     const checkUnread = async () => {
       const [channelMessages, directMessages, tasks] = await Promise.all([
@@ -83,11 +104,17 @@ export function Sidebar({ profile }: { profile: Profile }) {
           ? supabase.from('tasks').select('id').eq('user_id', profile.id).gt('created_at', taskSeenAt).limit(1)
           : Promise.resolve({ data: [] }),
       ]);
+      if (cancelled) return;
       setHasNewChat(!viewingChat && Boolean(channelMessages.data?.length || directMessages.data?.length));
       setHasNewTask(!viewingTasks && Boolean(tasks.data?.length));
     };
     void checkUnread();
+    return () => { cancelled = true; };
+  }, [pathname, supabase, chatKey, taskKey, profile.id, profile.role]);
 
+  // One realtime subscription for the whole session (not re-created on every
+  // navigation). It reads the current path when an event arrives.
+  useEffect(() => {
     const channel = supabase.channel(`sidebar-notifications-${profile.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
         if ((payload.new as { sender_id: string }).sender_id !== profile.id && !window.location.pathname.startsWith('/dashboard/chat')) {
@@ -110,16 +137,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
       .subscribe();
 
     return () => { void supabase.removeChannel(channel); };
-  }, [pathname, profile.id, profile.role]);
-
-  useEffect(() => {
-    if (pathname.startsWith('/dashboard/chat')) {
-      localStorage.setItem(`staff-suite:chat-seen:${profile.id}`, new Date().toISOString());
-    }
-    if (pathname.startsWith('/dashboard/employee/tasks')) {
-      localStorage.setItem(`staff-suite:tasks-seen:${profile.id}`, new Date().toISOString());
-    }
-  }, [pathname, profile.id]);
+  }, [supabase, profile.id]);
 
   useEffect(() => {
     if (!notice) return;

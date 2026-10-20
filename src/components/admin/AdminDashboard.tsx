@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Profile } from '@/types';
-import { getRoleBadgeColor, formatCurrency } from '@/lib/utils';
+import { getRoleBadgeColor, lagosToday } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import {
   Users, CheckSquare, Clock, TrendingUp, Activity,
@@ -37,27 +37,33 @@ export function AdminDashboard({ profile }: { profile: Profile }) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const yesterday24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    const todayDate = now.toISOString().split('T')[0];
+    const todayDate = lagosToday();
+    // Exact counts instead of downloading every task (which stops at 1,000 rows).
+    const taskCount = (status?: string) => {
+      const query = supabase.from('tasks').select('id', { count: 'exact', head: true });
+      return status ? query.eq('status', status) : query;
+    };
 
-    const [staffRes, tasksRes, todayTasksRes, loginRes] = await Promise.all([
+    const [staffRes, totalTasksRes, activeTasksRes, completedTasksRes, todayEntriesRes, loginRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-      supabase.from('tasks').select('status, hours_spent'),
-      supabase.from('tasks').select('hours_spent').eq('date_worked', todayDate),
-      supabase.from('login_logs').select('id').gte('login_time', yesterday24h),
+      taskCount(),
+      taskCount('in_progress'),
+      taskCount('completed'),
+      // Hours worked today (Lagos date) from the time log, across every task.
+      supabase.from('time_entries').select('hours').eq('work_date', todayDate),
+      supabase.from('login_logs').select('id', { count: 'exact', head: true }).gte('login_time', yesterday24h),
     ]);
 
     const staff = staffRes.data || [];
-    const tasks = tasksRes.data || [];
-    const todayTasks = todayTasksRes.data || [];
     const newThisMonth = staff.filter((s) => s.created_at >= startOfMonth).length;
 
     setStats({
       totalStaff: staff.length,
-      totalTasks: tasks.length,
-      activeTasks: tasks.filter((t) => t.status === 'in_progress').length,
-      completedTasks: tasks.filter((t) => t.status === 'completed').length,
-      totalHoursToday: todayTasks.reduce((sum, t) => sum + (t.hours_spent || 0), 0),
-      recentLogins: loginRes.data?.length || 0,
+      totalTasks: totalTasksRes.count ?? 0,
+      activeTasks: activeTasksRes.count ?? 0,
+      completedTasks: completedTasksRes.count ?? 0,
+      totalHoursToday: (todayEntriesRes.data || []).reduce((sum, e) => sum + Number(e.hours), 0),
+      recentLogins: loginRes.count ?? 0,
       newStaffThisMonth: newThisMonth,
     });
     setRecentStaff(staff.slice(0, 5) as Profile[]);
