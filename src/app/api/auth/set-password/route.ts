@@ -50,14 +50,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Password must be 6 to 72 characters.' }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.updateUserById(user.id, {
-    password,
-    // Server-only flag: the user can't clear it themselves to skip this step.
-    app_metadata: { must_set_password: false },
-    user_metadata: { must_set_password: false },
-  });
+  // Set the password through the user's own session so they stay signed in
+  // (an admin-API password change ends all of the user's sessions).
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password, data: { must_set_password: false } });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // Server-only flag: the user can't clear it themselves to skip this step.
+  const admin = createAdminClient();
+  const { error: flagError } = await admin.auth.admin.updateUserById(user.id, { app_metadata: { must_set_password: false } });
+  if (flagError) return NextResponse.json({ error: flagError.message }, { status: 500 });
 
   await admin.from('profiles').update({ invitation_accepted: true }).eq('id', user.id);
   return NextResponse.json({ success: true });
