@@ -62,6 +62,13 @@ export async function backupDatabase() {
   return { key, bytes: body.length, rows: Object.fromEntries(Object.entries(snapshot).map(([t, r]) => [t, r.length])), removedOldBackups: old.length };
 }
 
+/** The newest backup in R2, if any. */
+export async function latestBackup() {
+  const backups = (await listObjects('backups/')).sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0));
+  const newest = backups[0];
+  return newest ? { key: newest.Key, at: newest.LastModified?.toISOString() ?? null, count: backups.length } : null;
+}
+
 /** Deletes uploads that were never verified (left in staging/ for over a day). */
 export async function cleanStagingUploads() {
   const cutoff = Date.now() - STAGING_MAX_AGE_HOURS * 3600 * 1000;

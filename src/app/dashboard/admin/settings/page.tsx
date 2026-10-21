@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Settings, Globe, Save, Loader2, CheckCircle } from 'lucide-react';
+import { MaintenancePanel } from '@/components/admin/MaintenancePanel';
 
 interface AppSettings {
   company_name: string;
@@ -123,6 +124,8 @@ export default function AdminSettingsPage() {
             </p>
           </div>
         </motion.div>
+
+        <MaintenancePanel />
 
         {saved && (
           <motion.div
