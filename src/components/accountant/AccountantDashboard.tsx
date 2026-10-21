@@ -94,7 +94,7 @@ export function AccountantDashboard({ profile }: { profile: Profile }) {
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search name, role, department..."
                 aria-label="Search staff"
-                className="input-field w-full pl-9 py-2 text-sm sm:w-[220px]"
+                className="input-field input-with-icon w-full py-2 text-sm sm:w-[260px]"
               />
             </div>
             <button onClick={exportCSV} disabled={loading || filtered.length === 0} className="btn-secondary w-full py-2 sm:w-auto disabled:opacity-50">

@@ -211,7 +211,7 @@ export default function AdminStaffPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, email, department..."
-            className="input-field pl-9"
+            className="input-field input-with-icon"
           />
         </div>
         <div className="flex gap-3">

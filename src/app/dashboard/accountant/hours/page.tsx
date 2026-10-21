@@ -60,7 +60,7 @@ export default function AccountantHoursPage() {
             onChange={e => setSearch(e.target.value)}
             placeholder="Filter staff..."
             aria-label="Filter staff"
-            className="input-field pl-9 py-2 text-sm"
+            className="input-field input-with-icon py-2 text-sm"
             style={{ width: '200px' }}
           />
         </div>

@@ -81,7 +81,7 @@ export default function AdminLogsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by name, email, role, IP..."
-            className="input-field pl-9"
+            className="input-field input-with-icon"
           />
         </div>
         <button onClick={fetchLogs} className="btn-secondary px-4" disabled={refreshing}>
