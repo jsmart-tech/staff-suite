@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type SetAllCookies } from '@supabase/ssr';
+import { isPublicPath } from '@/lib/public-paths';
 
 export async function proxy(request: NextRequest) {
   const canonicalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
@@ -45,10 +46,7 @@ export async function proxy(request: NextRequest) {
   const mustSetPassword = user?.app_metadata?.must_set_password === true;
   const isAuthPage   = pathname === '/login';
   const isApiRequest = pathname.startsWith('/api/');
-  const isPublicPage = pathname === '/'
-    || pathname.startsWith('/auth/')    // /auth/callback — invite token exchange
-    || pathname === '/accept-invite'
-    || pathname === '/reset-password';  // invite/recovery password-set pages
+  const isPublicPage = isPublicPath(pathname);
 
   if (!user && !isAuthPage && !isPublicPage) {
     // API consumers expect a machine-readable error, not the HTML login page.

@@ -4,12 +4,16 @@ import { createClient } from '@/lib/supabase/server';
 import { getSiteUrl, sendNotificationEmail } from '@/lib/email';
 import { createNotifications } from '@/lib/notifications';
 import { isIsoDate, businessToday } from '@/lib/utils';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // At most 60 new tasks per user per hour.
+    const limited = await rateLimit(`tasks:${user.id}`, 60, 3600);
+    if (limited) return limited;
 
     const { data: caller } = await supabase.from('profiles').select('role, full_name, email').eq('id', user.id).single();
     if (!caller) return NextResponse.json({ error: 'Profile not found.' }, { status: 403 });

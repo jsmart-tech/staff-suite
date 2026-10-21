@@ -42,6 +42,8 @@ export default {
     // Direct-message attachments are private: the app serves them through
     // /api/files after checking conversation membership. Never serve them here.
     if (key.startsWith('dm/')) return new Response('Not Found', { status: 404 });
+    // Nightly database backups are private and never served.
+    if (key.startsWith('backups/')) return new Response('Not Found', { status: 404 });
     // SVG is deliberately not served: it can contain active script content.
     if (/\.svg$/i.test(key)) return new Response('Unsupported media type', { status: 415 });
 

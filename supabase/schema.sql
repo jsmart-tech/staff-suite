@@ -499,7 +499,9 @@ BEGIN
       v_end,
       (((v_start AT TIME ZONE 'America/New_York')::date + 1)::timestamp AT TIME ZONE 'America/New_York')
     );
-    IF v_cut > v_start THEN
+    -- Skip slivers that round to 0 hours (under ~0.2s), e.g. a session ending
+    -- just after midnight; a zero entry would fail and leave the timer stuck.
+    IF round(extract(epoch FROM v_cut - v_start)::numeric / 3600, 4) > 0 THEN
       INSERT INTO public.time_entries (user_id, task_id, work_date, hours, source, started_at, ended_at, created_by)
       VALUES (v_task.user_id, p_task_id, (v_start AT TIME ZONE 'America/New_York')::date,
               round(extract(epoch FROM v_cut - v_start)::numeric / 3600, 4),
@@ -628,6 +630,54 @@ GRANT EXECUTE ON FUNCTION public.stop_task_timer(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.set_task_hours(uuid, numeric, date) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.monthly_hours_report(date) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.monthly_hours_by_day(date) TO authenticated;
+
+-- ── Rate limiting (used by the API with the service role) ────────────────────
+CREATE TABLE public.rate_limit_hits (
+  key          text NOT NULL,
+  window_start timestamptz NOT NULL,
+  hits         integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (key, window_start)
+);
+ALTER TABLE public.rate_limit_hits ENABLE ROW LEVEL SECURITY;  -- server only: no policies
+REVOKE ALL ON public.rate_limit_hits FROM anon, authenticated;
+
+-- Counts one hit for `p_key` in the current fixed window and returns true if
+-- it is within `p_limit` hits per `p_window_seconds`.
+CREATE FUNCTION public.consume_rate_limit(p_key text, p_limit integer, p_window_seconds integer)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_window timestamptz := to_timestamp(floor(extract(epoch FROM now()) / p_window_seconds) * p_window_seconds);
+  v_hits   integer;
+BEGIN
+  INSERT INTO public.rate_limit_hits (key, window_start, hits)
+  VALUES (p_key, v_window, 1)
+  ON CONFLICT (key, window_start) DO UPDATE SET hits = rate_limit_hits.hits + 1
+  RETURNING hits INTO v_hits;
+  RETURN v_hits <= p_limit;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.consume_rate_limit(text, integer, integer) FROM anon, authenticated, public;
+
+-- ── Error log (browser and server errors; admins can read) ───────────────────
+CREATE TABLE public.app_errors (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  source     text NOT NULL CHECK (source IN ('browser', 'server')),
+  message    text NOT NULL,
+  stack      text,
+  url        text,
+  user_id    uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  user_agent text,
+  digest     text
+);
+CREATE INDEX idx_app_errors_created ON public.app_errors (created_at DESC);
+ALTER TABLE public.app_errors ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.app_errors FROM anon, authenticated;
+GRANT SELECT ON public.app_errors TO authenticated;
+CREATE POLICY "Admins can view errors" ON public.app_errors
+  FOR SELECT USING (public.get_user_role(auth.uid()) = 'admin');
 
 -- ── Storage (Supabase) ───────────────────────────────────────────────────────
 -- Chat files and avatars live in Cloudflare R2. Supabase Storage holds only

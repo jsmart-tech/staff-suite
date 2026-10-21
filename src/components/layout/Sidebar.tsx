@@ -13,6 +13,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
 import { cn, getInitials, getRoleBadgeColor } from '@/lib/utils';
+import { FocusTrap } from '@/components/ui/FocusTrap';
 
 interface NavItem {
   href: string;
@@ -385,7 +386,9 @@ export function Sidebar({ profile }: { profile: Profile }) {
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               className="lg:hidden fixed left-0 top-0 bottom-0 z-50 w-64 flex flex-col"
               style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}
+              role="dialog" aria-modal="true" aria-label="Menu"
             >
+              <FocusTrap onEscape={() => setMobileOpen(false)} className="flex h-full flex-col">
               <button aria-label="Close menu"
                 type="button"
                 onClick={() => setMobileOpen(false)}
@@ -395,6 +398,7 @@ export function Sidebar({ profile }: { profile: Profile }) {
                 <X size={16} />
               </button>
               {renderSidebarContent()}
+              </FocusTrap>
             </motion.aside>
           </>
         )}

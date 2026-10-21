@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { r2, r2Bucket } from '@/lib/r2';
 import { attachmentUrlFor } from '@/lib/attachments';
 import { detectMimeFromBytes } from '@/lib/file-types';
+import { rateLimit } from '@/lib/rate-limit';
 
 const maxSize = 20 * 1024 * 1024;
 
@@ -12,6 +13,9 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // At most 60 uploads per user per 10 minutes.
+  const limited = await rateLimit(`upload:${user.id}`, 60, 600);
+  if (limited) return limited;
 
   const { fileName, fileSize, browserMime, fileHeaderBase64, scope } = await request.json();
   // Direct-message files live under dm/ so they are never served by the public

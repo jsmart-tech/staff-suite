@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { safeNextPath } from '@/lib/redirects';
 
 /**
  * /auth/callback
@@ -15,24 +16,6 @@ import { createClient } from '@/lib/supabase/server';
  *    window.location.hash client-side and forwards to /accept-invite
  *    with the hash intact so the Supabase JS client can process it.
  */
-/**
- * Only allow redirects to a path on this site. Rejects absolute URLs,
- * protocol-relative `//evil.com`, backslash tricks and `javascript:` values.
- */
-function safeNextPath(value: string | null): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) {
-    return '/dashboard';
-  }
-  try {
-    const base = 'http://local.invalid';
-    const url = new URL(value, base);
-    if (url.origin !== base) return '/dashboard';
-    return url.pathname + url.search;
-  } catch {
-    return '/dashboard';
-  }
-}
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code      = searchParams.get('code');

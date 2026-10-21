@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { LoginLog, Profile } from '@/types';
 import { formatDateTime, getRoleBadgeColor } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
+import { SystemErrors } from '@/components/admin/SystemErrors';
 import { Shield, Clock, Search, RefreshCw } from 'lucide-react';
 
 export default function AdminLogsPage() {
@@ -179,6 +180,8 @@ export default function AdminLogsPage() {
           </table>
         </div>
       </motion.div>
+
+      <SystemErrors />
     </div>
   );
 }

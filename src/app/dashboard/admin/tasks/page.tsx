@@ -474,11 +474,11 @@ export default function AdminTasksPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[13px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Start Date</label>
-                    <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} className="input-field text-sm" />
+                    <input aria-label="Start Date" type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} className="input-field text-sm" />
                   </div>
                   <div>
                     <label className="block text-[13px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>End Date</label>
-                    <input type="date" min={form.start_date} value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="input-field text-sm" />
+                    <input aria-label="End Date" type="date" min={form.start_date} value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="input-field text-sm" />
                   </div>
                 </div>
 

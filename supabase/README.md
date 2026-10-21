@@ -3,7 +3,7 @@
 | File | What it is |
 |---|---|
 | `schema.sql` | The complete database. Run it once on a **new** Supabase project. |
-| `patch_stage4_cleanup.sql` | Pending change for the **existing** live database (Eastern time, audit trail, last-admin guard, server-only login logs, indexes). Once it has been run, move it to `archive/`. |
+| `patch_stage5_hardening.sql` | Pending change for the **existing** live database (timer fix, rate limiting, error log). Once it has been run, move it to `archive/`. |
 | `archive/` | The one-off patches that built the live database, in the order they were applied. History only — **do not run them**: several older ones contain bugs that were fixed later (for example, early `handle_new_user` versions let anyone sign up as an admin). |
 
 ## New project

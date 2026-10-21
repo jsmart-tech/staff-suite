@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Profile, UserRole } from '@/types';
 import { formatCurrency, formatDateTime, getRoleBadgeColor } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
+import { FocusTrap } from '@/components/ui/FocusTrap';
 import { DEPARTMENTS } from '@/lib/constants';
 import {
   Search, Plus, Edit2, X, Loader2, Users,
@@ -326,12 +327,13 @@ export default function AdminStaffPage() {
 
       {/* Edit Modal */}
       {editingProfile && (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Edit profile">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="modal-panel"
           >
+          <FocusTrap onEscape={() => setEditingProfile(null)}>
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="font-semibold">Edit Profile</h3>
@@ -348,7 +350,7 @@ export default function AdminStaffPage() {
                 <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                   <UserCog size={12} className="inline mr-1" />Full Name
                 </label>
-                <input
+                <input aria-label="Full Name"
                   type="text"
                   value={editingProfile.full_name || ''}
                   onChange={e => setEditingProfile({ ...editingProfile, full_name: e.target.value })}
@@ -362,7 +364,7 @@ export default function AdminStaffPage() {
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                     Role
                   </label>
-                  <select
+                  <select aria-label="Role"
                     value={editingProfile.role}
                     onChange={e => setEditingProfile({ ...editingProfile, role: e.target.value as UserRole })}
                     className="input-field"
@@ -374,7 +376,7 @@ export default function AdminStaffPage() {
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                     <Building size={12} className="inline mr-1" />Department
                   </label>
-                  <select
+                  <select aria-label="Department"
                     value={editingProfile.department || ''}
                     onChange={e => setEditingProfile({ ...editingProfile, department: e.target.value })}
                     className="input-field"
@@ -390,7 +392,7 @@ export default function AdminStaffPage() {
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                     <DollarSign size={12} className="inline mr-1" />Hourly Rate ($)
                   </label>
-                  <input
+                  <input aria-label="Hourly Rate ($)"
                     type="number"
                     value={editingProfile.hourly_rate}
                     onChange={e => setEditingProfile({ ...editingProfile, hourly_rate: Number(e.target.value) })}
@@ -403,7 +405,7 @@ export default function AdminStaffPage() {
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                     <Phone size={12} className="inline mr-1" />Phone
                   </label>
-                  <input
+                  <input aria-label="Phone"
                     type="tel"
                     value={editingProfile.phone || ''}
                     onChange={e => setEditingProfile({ ...editingProfile, phone: e.target.value })}
@@ -425,18 +427,20 @@ export default function AdminStaffPage() {
                 </button>
               </div>
             </div>
+          </FocusTrap>
           </motion.div>
         </div>
       )}
 
       {/* ── Invite User Modal ── */}
       {showInvite && (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Invite team member">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="modal-panel w-full max-w-[480px]"
           >
+          <FocusTrap onEscape={() => setShowInvite(false)}>
             {/* Modal header */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
@@ -461,7 +465,7 @@ export default function AdminStaffPage() {
                 <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                   <UserCog size={12} className="inline mr-1" />Full Name
                 </label>
-                <input
+                <input aria-label="Full Name"
                   type="text"
                   value={invite.full_name}
                   onChange={e => setInvite({ ...invite, full_name: e.target.value })}
@@ -475,7 +479,7 @@ export default function AdminStaffPage() {
                 <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                   <Mail size={12} className="inline mr-1" />Email Address *
                 </label>
-                <input
+                <input aria-label="Email Address"
                   type="email"
                   value={invite.email}
                   onChange={e => setInvite({ ...invite, email: e.target.value })}
@@ -520,7 +524,7 @@ export default function AdminStaffPage() {
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                     <Building size={12} className="inline mr-1" />Department
                   </label>
-                  <select
+                  <select aria-label="Department"
                     value={invite.department}
                     onChange={e => setInvite({ ...invite, department: e.target.value })}
                     className="input-field"
@@ -533,7 +537,7 @@ export default function AdminStaffPage() {
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                     <DollarSign size={12} className="inline mr-1" />Hourly Rate ($)
                   </label>
-                  <input
+                  <input aria-label="Hourly Rate ($)"
                     type="number"
                     value={invite.hourly_rate || ''}
                     onChange={e => setInvite({ ...invite, hourly_rate: Number(e.target.value) })}
@@ -565,6 +569,7 @@ export default function AdminStaffPage() {
                 </button>
               </div>
             </div>
+          </FocusTrap>
           </motion.div>
         </div>
       )}

@@ -7,6 +7,7 @@ import { Task, TaskStatus } from '@/types';
 import { businessToday, formatDateOnly, getStatusColor } from '@/lib/utils';
 import { TASK_STATUS_OPTIONS } from '@/lib/constants';
 import { TaskDetailPanel } from '@/components/tasks/TaskDetailPanel';
+import { FocusTrap } from '@/components/ui/FocusTrap';
 import {
   Plus, Play, Square, CheckCircle, Clock, AlertCircle,
   Trash2, Edit2, X, Loader2, Calendar,
@@ -462,6 +463,7 @@ export default function EmployeeTasksPage() {
       <AnimatePresence>
         {showForm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            role="dialog" aria-modal="true" aria-label={editId ? 'Edit task' : 'New task'}
             style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -470,6 +472,7 @@ export default function EmployeeTasksPage() {
               className="w-full max-w-md rounded-2xl p-6"
               style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)' }}
             >
+              <FocusTrap onEscape={() => { setShowForm(false); setEditId(null); }}>
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-bold text-lg">{editId ? 'Edit Task' : 'New Task'}</h3>
                 <button aria-label="Close" onClick={() => { setShowForm(false); setEditId(null); }}
@@ -481,7 +484,7 @@ export default function EmployeeTasksPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Task Title *</label>
-                  <input
+                  <input aria-label="Task Title"
                     type="text"
                     value={form.title}
                     onChange={e => setForm({ ...form, title: e.target.value })}
@@ -493,16 +496,16 @@ export default function EmployeeTasksPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Start Date</label>
-                    <input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} className="input-field" />
+                    <input aria-label="Start Date" type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} className="input-field" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>End Date</label>
-                    <input type="date" value={form.due_date} min={form.start_date} onChange={e => setForm({ ...form, due_date: e.target.value })} className="input-field" />
+                    <input aria-label="End Date" type="date" value={form.due_date} min={form.start_date} onChange={e => setForm({ ...form, due_date: e.target.value })} className="input-field" />
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Description (optional)</label>
-                  <textarea
+                  <textarea aria-label="Description (optional)"
                     value={form.description}
                     onChange={e => setForm({ ...form, description: e.target.value })}
                     placeholder="Add more details..."
@@ -513,7 +516,7 @@ export default function EmployeeTasksPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Status</label>
-                    <select
+                    <select aria-label="Status"
                       value={form.status}
                       onChange={e => setForm({ ...form, status: e.target.value as TaskStatus })}
                       className="input-field"
@@ -523,7 +526,7 @@ export default function EmployeeTasksPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Hours Spent</label>
-                    <input
+                    <input aria-label="Hours Spent"
                       type="number"
                       value={form.hours_spent}
                       onChange={e => setForm({ ...form, hours_spent: parseFloat(e.target.value) || 0 })}
@@ -535,7 +538,7 @@ export default function EmployeeTasksPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Date Worked</label>
-                  <input
+                  <input aria-label="Date Worked"
                     type="date"
                     value={form.date_worked}
                     max={businessToday()}
@@ -560,6 +563,7 @@ export default function EmployeeTasksPage() {
                   </button>
                 </div>
               </div>
+              </FocusTrap>
             </motion.div>
           </div>
         )}
@@ -585,6 +589,7 @@ export default function EmployeeTasksPage() {
       <AnimatePresence>
         {deleteId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            role="alertdialog" aria-modal="true" aria-label="Delete task?"
             style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -593,6 +598,7 @@ export default function EmployeeTasksPage() {
               className="w-full max-w-sm rounded-2xl p-6 text-center"
               style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)' }}
             >
+              <FocusTrap onEscape={() => setDeleteId(null)}>
               <Trash2 size={28} className="mx-auto mb-3" style={{ color: 'var(--accent-rose)' }} />
               <h3 className="font-bold text-lg mb-1">Delete Task?</h3>
               <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
@@ -602,6 +608,7 @@ export default function EmployeeTasksPage() {
                 <button onClick={() => setDeleteId(null)} className="btn-secondary flex-1">Cancel</button>
                 <button onClick={() => handleDelete(deleteId)} className="btn-danger flex-1">Delete</button>
               </div>
+              </FocusTrap>
             </motion.div>
           </div>
         )}

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { r2, r2Bucket } from '@/lib/r2';
 import { createNotifications } from '@/lib/notifications';
+import { rateLimit } from '@/lib/rate-limit';
 
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -11,6 +12,9 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // At most 10 profile photos per user per hour.
+  const limited = await rateLimit(`avatar:${user.id}`, 10, 3600);
+  if (limited) return limited;
 
   const form = await request.formData();
   const file = form.get('file');

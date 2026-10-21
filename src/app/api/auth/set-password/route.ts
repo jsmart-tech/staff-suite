@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { rateLimit } from '@/lib/rate-limit';
 
 // A session opened from an invite or password-reset email link may set a new
 // password without the old one, for this long after the link was used.
@@ -41,6 +42,9 @@ export async function GET() {
 export async function POST(request: Request) {
   const { user, allowed } = await checkAccess();
   if (!user) return NextResponse.json({ error: 'Your link has expired. Request a new one from the login page.' }, { status: 401 });
+  // At most 10 attempts per user per hour.
+  const limited = await rateLimit(`set-password:${user.id}`, 10, 3600);
+  if (limited) return limited;
   if (!allowed) {
     return NextResponse.json({ error: 'For security, use the password reset link from your email. On the login page, choose "Forgot password" to get a new one.' }, { status: 403 });
   }

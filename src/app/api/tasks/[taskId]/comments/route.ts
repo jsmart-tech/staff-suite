@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotifications } from '@/lib/notifications';
 import { sendNotificationEmail, getSiteUrl } from '@/lib/email';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function GET(_request: Request, context: { params: Promise<{ taskId: string }> }) {
   const supabase = await createClient();
@@ -22,6 +23,9 @@ export async function POST(request: Request, context: { params: Promise<{ taskId
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // At most 30 comments per user per minute.
+  const limited = await rateLimit(`comments:${user.id}`, 30, 60);
+  if (limited) return limited;
   const { data: caller } = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single();
   const { taskId } = await context.params;
   const { body } = await request.json() as { body?: string };

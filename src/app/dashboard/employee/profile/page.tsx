@@ -154,7 +154,7 @@ export default function EmployeeProfilePage() {
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
               <User size={12} className="inline mr-1" />Full Name
             </label>
-            <input
+            <input aria-label="Full Name"
               type="text"
               value={form.full_name}
               onChange={e => setForm({ ...form, full_name: e.target.value })}
@@ -166,7 +166,7 @@ export default function EmployeeProfilePage() {
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
               <Phone size={12} className="inline mr-1" />Phone Number
             </label>
-            <input
+            <input aria-label="Phone Number"
               type="tel"
               value={form.phone}
               onChange={e => setForm({ ...form, phone: e.target.value })}
@@ -178,7 +178,7 @@ export default function EmployeeProfilePage() {
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
               <Building size={12} className="inline mr-1" />Department
             </label>
-            <select
+            <select aria-label="Department"
               value={form.department}
               onChange={e => setForm({ ...form, department: e.target.value })}
               className="input-field"

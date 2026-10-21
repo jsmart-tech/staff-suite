@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { sendNotificationEmail } from '@/lib/email';
+import { rateLimit } from '@/lib/rate-limit';
 
 // Invitations must always use the public production domain. Deployment-specific
 // Vercel URLs can be protected and would send new employees to Vercel login.
@@ -16,6 +17,9 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // At most 20 invitations per admin per hour.
+    const limited = await rateLimit(`invite:${user.id}`, 20, 3600);
+    if (limited) return limited;
 
     const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (callerProfile?.role !== 'admin') return NextResponse.json({ error: 'Only admins can invite users.' }, { status: 403 });

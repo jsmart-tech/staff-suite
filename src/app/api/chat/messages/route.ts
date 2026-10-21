@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { queueChatReminders } from '@/lib/chat-reminders';
 import { createNotifications } from '@/lib/notifications';
 import { attachmentUrlFor, publicKeyFromAttachmentUrl } from '@/lib/attachments';
+import { rateLimit } from '@/lib/rate-limit';
 
 const channels = new Set(['general', 'announcements', 'random', 'hr', 'finance']);
 
@@ -12,6 +13,9 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // At most 30 messages per user per minute (channels and DMs together).
+    const limited = await rateLimit(`messages:${user.id}`, 30, 60);
+    if (limited) return limited;
     const { content, channel, attachmentUrl, attachmentName, clientMessageId } = await request.json();
     if (!channels.has(channel) || (!content?.trim() && !attachmentUrl)) return NextResponse.json({ error: 'A valid channel message or attachment is required.' }, { status: 400 });
     if ((content || '').trim().length > 5000) return NextResponse.json({ error: 'Messages are limited to 5,000 characters.' }, { status: 400 });

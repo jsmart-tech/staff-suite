@@ -36,7 +36,10 @@ npm install
 npm run dev          # http://localhost:3000
 npm run build        # production build (also type-checks)
 npm run lint
+npm test             # unit + database tests (no network or database needed)
 ```
+
+`npm test` runs `tests/unit` (dates, money, CSV, file-type checks, redirects, public paths) and `tests/db`, which builds a fresh database from `supabase/schema.sql` in an in-memory Postgres (PGlite) and checks access rules, time tracking and payroll. Run it before every deploy.
 
 ### Environment variables
 
@@ -54,6 +57,12 @@ npm run lint
 ## Database
 
 `supabase/schema.sql` creates the whole database on a new Supabase project. See [`supabase/README.md`](supabase/README.md) for setup, the first admin, and how to make changes.
+
+## Monitoring, limits and backups
+
+- **Errors** from browsers and the server are saved in `app_errors` and listed under **Audit Logs → System errors**. Admins get an email when an error happens (at most one per hour).
+- **Rate limits** (`src/lib/rate-limit.ts`): messages, uploads, comments, task creation, invites, password changes and error reports are limited per user. Sign-in attempts are limited by Supabase Auth (Authentication → Rate Limits).
+- **Nightly job** (`/api/cron/daily`, 03:00 Eastern, scheduled in QStash by `node scripts/create-daily-schedule.mjs`): backs up every app table to R2 as `backups/YYYY-MM-DD.json.gz` (30 days kept), deletes unverified uploads older than a day, and prunes old rate-limit and error records. To run it by hand, send a GET request with the header `x-cron-secret: <CHAT_REMINDER_CRON_SECRET>`. Login accounts and passwords live in Supabase Auth and are covered by Supabase's own backups.
 
 ## Deploying
 

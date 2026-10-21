@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
+import { ErrorReporter } from '@/components/ErrorReporter';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <body className="antialiased" suppressHydrationWarning>
+        <ErrorReporter />
         <div className="animated-bg" />
         <div className="relative z-10">{children}</div>
       </body>
