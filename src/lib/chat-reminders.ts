@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getSiteUrl, sendNotificationEmail } from '@/lib/email';
 import { scheduleChatReminders } from '@/lib/qstash';
+import { recordError } from '@/lib/error-log';
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -46,7 +47,10 @@ export async function queueChatReminders(admin: AdminClient, reminders: Reminder
 
   const toSchedule = (queued || []).filter(row => !alreadyScheduled.has(row.recipient_id)).map(row => row.id);
   const scheduled = await scheduleChatReminders(toSchedule);
-  if (scheduled.error) console.error(scheduled.error);
+  if (scheduled.error) {
+    console.error(scheduled.error);
+    await recordError({ source: 'server', message: `Could not schedule reminder emails: ${scheduled.error}`, url: 'queueChatReminders' });
+  }
 }
 
 type ReminderRow = {
@@ -95,6 +99,8 @@ export async function sendDueReminders(admin: AdminClient, ids: string[]) {
     if (result.sent) { sent++; continue; }
     failed++;
     console.error('Chat reminder email failed:', result.error);
+    // Surface it in Audit Logs → System errors (and the hourly admin alert).
+    await recordError({ source: 'server', message: `Reminder email to ${reminder.recipient_email} failed: ${result.error}`, url: '/api/qstash/chat-email-reminders' });
     await admin.from('chat_email_notifications').update({ sent_at: null }).eq('id', reminder.id).eq('sent_at', now);
   }
   return { sent, failed };
