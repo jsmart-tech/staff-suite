@@ -27,7 +27,7 @@ function buildHtml(heading: string, body: string, actionUrl: string, actionLabel
   <p style="white-space:pre-wrap;line-height:1.6">${escapeHtml(body)}</p>
   <p style="margin:24px 0">
     <a href="${actionUrl}"
-       style="display:inline-block;padding:12px 22px;background:#6d45e8;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
+       style="display:inline-block;padding:12px 22px;background:#b4473f;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
       ${escapeHtml(actionLabel)}
     </a>
   </p>
@@ -36,6 +36,18 @@ function buildHtml(heading: string, body: string, actionUrl: string, actionLabel
     Check your account to stay updated.
   </p>
 </div>`.trim();
+}
+
+/** Plain-text version sent alongside the HTML (HTML-only mail scores worse with spam filters). */
+function buildText(heading: string, body: string, actionUrl: string, actionLabel: string) {
+  return `${heading}
+
+${body}
+
+${actionLabel}: ${actionUrl}
+
+--
+You received this because you are a Blessed Path Staff Suite team member.`;
 }
 
 export async function sendNotificationEmail({
@@ -62,6 +74,7 @@ export async function sendNotificationEmail({
     to,
     subject,
     html: buildHtml(heading, body, escapeHtml(actionUrl), actionLabel),
+    text: buildText(heading, body, actionUrl, actionLabel),
   });
 
   return { sent: !error, error: error?.message };
@@ -87,6 +100,7 @@ export async function sendNotificationEmails(
     to,
     subject,
     html: buildHtml(heading, body, escapeHtml(actionUrl), actionLabel),
+    text: buildText(heading, body, actionUrl, actionLabel),
   }));
 
   let sent = 0;
